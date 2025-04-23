@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "name": "Admin User",
+    "email": "admin@example.com",
+    "password": "$2b$10$GTETr84/daecPgIV48v9VelpVrFzC6coKeaVpGphFq3ROCUMe6hRW",
+    "role": "admin",
+    "permissions": {
+      "view": true,
+      "edit": true,
+      "download": true
+    }
+  },
+  {
+    "id": 2,
+    "name": "Regular User",
+    "email": "user@example.com",
+    "password": "$2a$10$Op3HXFm3xT3pUQUOIs0ZGeYCgGuhPH/bIEcBxg7WNQnZzsqIYcAyy",
+    "role": "user",
+    "permissions": {
+      "view": true,
+      "edit": false,
+      "download": false
+    }
+  }
+]
