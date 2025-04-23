@@ -33,13 +33,109 @@ app.use((req, res, next) => {
   next();
 });
 
-// Request logger
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
-  next();
+// Add direct endpoints for file configuration - place this BEFORE the router registration
+app.get('/api/files/config', (req, res) => {
+  try {
+    console.log('GET /api/files/config endpoint called directly');
+    
+    const path = require('path');
+    const fs = require('fs');
+    
+    // Read the configuration file directly
+    const configPath = path.join(__dirname, 'config', 'directoryConfig.json');
+    let customDirectoryPath = '';
+    
+    if (fs.existsSync(configPath)) {
+      try {
+        const configContent = fs.readFileSync(configPath, 'utf8');
+        const config = JSON.parse(configContent);
+        customDirectoryPath = config.directoryPath || '';
+        console.log('Found custom directory path:', customDirectoryPath);
+      } catch (parseError) {
+        console.error('Error parsing config file:', parseError);
+      }
+    } else {
+      console.log('Config file not found at:', configPath);
+    }
+    
+    // Use the custom path or default
+    const dataDir = path.join(__dirname, 'data');
+    const filesDir = customDirectoryPath || path.join(dataDir, 'files');
+    
+    // Response data
+    const configData = {
+      filesDir,
+      customDirectoryPath,
+      isUsingCustomPath: !!customDirectoryPath
+    };
+    
+    console.log('Sending directory config data:', configData);
+    res.json(configData);
+  } catch (error) {
+    console.error('Error in GET /api/files/config:', error);
+    res.status(500).json({
+      message: 'Error getting directory configuration',
+      error: error.toString()
+    });
+  }
 });
 
-// API routes
+app.post('/api/files/config', (req, res) => {
+  try {
+    console.log('POST /api/files/config endpoint called directly');
+    console.log('Request body:', req.body);
+    
+    const { directoryPath } = req.body;
+    
+    if (!directoryPath) {
+      return res.status(400).json({ message: 'Directory path is required' });
+    }
+    
+    // Validate directory
+    const fs = require('fs');
+    const path = require('path');
+    
+    try {
+      const stats = fs.statSync(directoryPath);
+      if (!stats.isDirectory()) {
+        return res.status(400).json({ message: 'Path is not a directory' });
+      }
+    } catch (fsError) {
+      return res.status(400).json({ 
+        message: 'Directory does not exist',
+        error: fsError.toString()
+      });
+    }
+    
+    // Save configuration
+    const configDir = path.join(__dirname, 'config');
+    const configPath = path.join(configDir, 'directoryConfig.json');
+    
+    // Create config directory if it doesn't exist
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+    
+    // Write config file
+    fs.writeFileSync(configPath, JSON.stringify({ directoryPath }, null, 2));
+    console.log(`Updated directory config to: ${directoryPath}`);
+    
+    res.json({
+      message: 'Directory configuration updated successfully',
+      filesDir: directoryPath,
+      customDirectoryPath: directoryPath,
+      isUsingCustomPath: true
+    });
+  } catch (error) {
+    console.error('Error in POST /api/files/config:', error);
+    res.status(500).json({
+      message: 'Error updating directory configuration',
+      error: error.toString()
+    });
+  }
+});
+
+// API routes - must come AFTER the direct endpoints
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/files', fileRoutes);

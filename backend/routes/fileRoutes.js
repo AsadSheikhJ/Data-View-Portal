@@ -102,6 +102,10 @@ const upload = multer({
 // List files in a directory
 router.get('/', async (req, res) => {
   try {
+    // Reload config to get the latest directory path
+    delete require.cache[require.resolve('../config/directoryConfig')];
+    const directoryConfig = require('../config/directoryConfig');
+    
     const directory = req.query.directory || '';
     
     let dirPath;
@@ -275,6 +279,10 @@ router.get('/config', async (req, res) => {
     // Always set the content type to JSON
     res.setHeader('Content-Type', 'application/json');
     
+    // Reload the config to ensure we have the latest
+    delete require.cache[require.resolve('../config/directoryConfig')];
+    const directoryConfig = require('../config/directoryConfig');
+    
     const configData = {
       filesDir: directoryConfig.filesDir,
       customDirectoryPath: directoryConfig.customDirectoryPath || '',
@@ -326,9 +334,16 @@ router.post('/config', async (req, res) => {
     
     console.log('Updated directory configuration to:', directoryPath);
     
+    // Reload the directory config module
+    delete require.cache[require.resolve('../config/directoryConfig')];
+    const newConfig = require('../config/directoryConfig');
+    
+    // Return updated configuration
     return res.json({ 
       message: 'Directory configuration updated successfully',
-      directoryPath 
+      directoryPath: newConfig.customDirectoryPath,
+      filesDir: newConfig.filesDir,
+      isUsingCustomPath: newConfig.isUsingCustomPath
     });
   } catch (error) {
     console.error('Error updating directory config:', error);

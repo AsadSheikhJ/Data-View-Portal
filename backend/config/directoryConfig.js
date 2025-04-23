@@ -1,15 +1,21 @@
 const path = require('path');
 const fs = require('fs');
 
+console.log('Loading directory configuration');
+
 // Get custom directory path from JSON config if available
 let customDirectoryPath = '';
 try {
   // Use synchronous fs to ensure path is loaded before exporting
   const jsonConfigPath = path.join(__dirname, 'directoryConfig.json');
-  const jsonContent = fs.readFileSync(jsonConfigPath, 'utf8');
-  const jsonConfig = JSON.parse(jsonContent);
-  customDirectoryPath = jsonConfig.directoryPath || '';
-  console.log('Loaded custom directory path from JSON:', customDirectoryPath);
+  if (fs.existsSync(jsonConfigPath)) {
+    const jsonContent = fs.readFileSync(jsonConfigPath, 'utf8');
+    const jsonConfig = JSON.parse(jsonContent);
+    customDirectoryPath = jsonConfig.directoryPath || '';
+    console.log('Loaded custom directory path from JSON:', customDirectoryPath);
+  } else {
+    console.log('directoryConfig.json not found, using default paths');
+  }
 } catch (error) {
   console.error('Error loading directory config JSON:', error.message);
 }
@@ -23,7 +29,7 @@ if (customDirectoryPath && fs.existsSync(customDirectoryPath)) {
   filesDir = customDirectoryPath; // Use custom path directly as files directory
   dataDir = path.dirname(customDirectoryPath); // Parent directory as data dir
 } else {
-  console.log('Custom path not valid, using default directories');
+  console.log('Custom path not valid or not found, using default directories');
   dataDir = path.join(__dirname, '..', 'data');
   filesDir = path.join(dataDir, 'files');
 }
@@ -41,6 +47,5 @@ module.exports = {
   tempDir,
   logsDir,
   customDirectoryPath,
-  // Helper to check if we're using a custom directory
-  isUsingCustomPath: !!customDirectoryPath
+  isUsingCustomPath: !!customDirectoryPath && fs.existsSync(customDirectoryPath)
 };

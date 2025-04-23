@@ -75,49 +75,36 @@ const Settings = ({ darkMode, setDarkMode }) => {
   // Add a new state for the root directory path
   const [rootDirectoryPath, setRootDirectoryPath] = useState('');
 
-  // Add API_URL constant
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-
-  // Load directories on component mount
+  // Simplify the Settings component to reduce errors
   useEffect(() => {
-    loadDirectories();
-    loadDirectoryConfig();
-  }, []);
-
-  // Load the current root directory path
-  useEffect(() => {
-    const loadRootDirectoryPath = async () => {
+    // Combine the two useEffects into one
+    const loadSettings = async () => {
       try {
         setLoading(true);
-        // Get the current directory config using the full URL
-        const response = await fetch(`${API_URL}/api/files/config`, {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        });
         
-        if (response.ok) {
-          // Check if the response is JSON
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const data = await response.json();
-            if (data.customDirectoryPath) {
-              setRootDirectoryPath(data.customDirectoryPath);
-            }
-          } else {
-            console.warn('Response is not JSON:', await response.text());
-            throw new Error('Server returned non-JSON response');
+        // Get root directory path
+        try {
+          const config = await fileService.getDirectoryConfig();
+          if (config.customDirectoryPath) {
+            setRootDirectoryPath(config.customDirectoryPath);
           }
-        } else {
-          console.error('Failed to fetch directory config:', response.status);
-          throw new Error(`Failed with status: ${response.status}`);
+        } catch (configError) {
+          console.warn('Error loading directory config, using empty value:', configError);
+        }
+        
+        // Load directories
+        try {
+          const files = await fileService.listFiles();
+          const dirs = files.filter(file => file.isDirectory);
+          setDirectories(dirs);
+        } catch (dirError) {
+          console.warn('Error loading directories:', dirError);
         }
       } catch (error) {
-        console.error('Error loading root directory path:', error);
+        console.error('Error loading settings:', error);
         setSnackbar({
           open: true,
-          message: `Failed to load root directory configuration: ${error.message}`,
+          message: 'Failed to load settings',
           severity: 'error'
         });
       } finally {
@@ -125,9 +112,10 @@ const Settings = ({ darkMode, setDarkMode }) => {
       }
     };
     
-    loadRootDirectoryPath();
+    loadSettings();
   }, []);
 
+  // Add these functions that were previously removed
   const loadDirectories = async () => {
     try {
       setLoading(true);
@@ -151,6 +139,9 @@ const Settings = ({ darkMode, setDarkMode }) => {
       setLoading(true);
       const config = await fileService.getDirectoryConfig();
       setDirConfig(config);
+      if (config.customDirectoryPath) {
+        setRootDirectoryPath(config.customDirectoryPath);
+      }
     } catch (error) {
       console.error('Error loading directory configuration:', error);
       setSnackbar({
@@ -309,30 +300,21 @@ const Settings = ({ darkMode, setDarkMode }) => {
     try {
       setLoading(true);
       
-      // Save the new directory path to the configuration with proper URL
-      const response = await fetch(`${API_URL}/api/files/config`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ directoryPath: rootDirectoryPath })
-      });
+      // Use fileService instead of direct fetch
+      await fileService.updateDirectoryConfig(rootDirectoryPath);
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Directory update response:', data);
-        
-        setSnackbar({
-          open: true,
-          message: 'Root directory updated successfully. Server restart may be required.',
-          severity: 'success'
-        });
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update directory:', errorText);
-        throw new Error(`Failed with status: ${response.status}`);
+      // Refresh file listings
+      try {
+        await fileService.listFiles('');
+      } catch (refreshError) {
+        console.warn('Error refreshing files after directory change:', refreshError);
       }
+      
+      setSnackbar({
+        open: true,
+        message: 'Root directory updated successfully',
+        severity: 'success'
+      });
     } catch (error) {
       console.error('Error setting root directory:', error);
       setSnackbar({

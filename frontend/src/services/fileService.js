@@ -33,29 +33,94 @@ const formatFileSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-// Simplified directory config handling - instead of using a separate endpoint
-// we'll use the root directory listing
+// Debug API URL
+console.log('API URL configured as:', API_URL);
+
+// Get directory configuration - with debug logging
 const getDirectoryConfig = async () => {
   try {
-    // Get the file listing directly instead of using a dedicated config endpoint
-    const files = await listFiles('');
-    const rootDirectories = files
-      .filter(file => file.isDirectory)
-      .map(dir => ({
-        name: dir.name,
-        path: dir.path
-      }));
+    console.log('Fetching directory configuration');
     
-    return {
-      filesDir: '',
-      rootDirectories
-    };
+    // Use direct URL with full path
+    const fullUrl = `${API_URL}/api/files/config`;
+    console.log(`Making direct request to: ${fullUrl}`);
+    
+    const response = await fetch(fullUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    
+    // Log full response details for debugging
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers);
+    
+    const responseText = await response.text();
+    console.log('Raw response:', responseText);
+    
+    // Try to parse as JSON if possible
+    let data;
+    try {
+      data = JSON.parse(responseText);
+      console.log('Parsed response data:', data);
+    } catch (parseError) {
+      console.error('Failed to parse response as JSON:', parseError);
+      throw new Error(`Invalid JSON response: ${responseText}`);
+    }
+    
+    return data;
   } catch (error) {
-    console.warn('Could not fetch directory config, using defaults', error);
+    console.error('Error fetching directory config:', error);
+    // Return default values
     return {
       filesDir: '',
-      rootDirectories: []
+      customDirectoryPath: '',
+      isUsingCustomPath: false
     };
+  }
+};
+
+// Update directory configuration - with better error handling
+const updateDirectoryConfig = async (directoryPath) => {
+  try {
+    console.log('Updating directory configuration to:', directoryPath);
+    
+    // Use direct URL with full path
+    const fullUrl = `${API_URL}/api/files/config`;
+    console.log(`Sending POST request to: ${fullUrl}`);
+    
+    const response = await fetch(fullUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ directoryPath })
+    });
+    
+    // Log response details
+    console.log('Response status:', response.status);
+    
+    const responseText = await response.text();
+    console.log('Raw response:', responseText);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}: ${responseText}`);
+    }
+    
+    // Parse response as JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      throw new Error(`Invalid JSON response: ${responseText}`);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error updating directory config:', error);
+    throw error;
   }
 };
 
@@ -200,6 +265,7 @@ const fileService = {
   createDirectory,
   formatFileSize,
   getDirectoryConfig,
+  updateDirectoryConfig,
   getRootDirectories
 };
 
