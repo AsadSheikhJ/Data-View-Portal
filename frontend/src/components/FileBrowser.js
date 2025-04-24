@@ -383,20 +383,48 @@ const FileBrowser = () => {
 
   return (
     <Box>
-      <Paper sx={{ p: 2, mb: 2 }}>
-        {/* Remove the directory selector and replace with just the action buttons */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">
-            File Browser
+      <Paper 
+        elevation={1} 
+        sx={{ 
+          p: { xs: 1, sm: 1.5 }, 
+          mb: 0.5,
+          borderRadius: 2,
+          overflow: 'hidden'
+        }}
+      >
+        {/* File browser header with improved styling */}
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          mb: { xs: 1, sm: 1.5 },
+          flexWrap: 'wrap',
+          gap: 1
+        }}>
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              fontSize: { xs: '1rem', sm: '1.1rem' },
+              fontWeight: 600,
+              color: theme => theme.palette.text.primary
+            }}
+          >
+            Files
           </Typography>
           
-          <Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
             {canEdit && (
               <>
                 <Button
                   startIcon={<NewFolderIcon />}
+                  variant="outlined" 
                   onClick={handleNewFolderClick}
-                  sx={{ mr: 1 }}
+                  size="small"
+                  sx={{ 
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 500
+                  }}
                 >
                   New Folder
                 </Button>
@@ -404,6 +432,12 @@ const FileBrowser = () => {
                   startIcon={<UploadIcon />}
                   variant="contained"
                   onClick={handleUploadClick}
+                  size="small"
+                  sx={{ 
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 500
+                  }}
                 >
                   Upload
                 </Button>
@@ -412,159 +446,263 @@ const FileBrowser = () => {
           </Box>
         </Box>
 
-        {/* Breadcrumbs navigation */}
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        {/* Breadcrumbs navigation with improved styling */}
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          mb: 1.5,
+          bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+          borderRadius: 2,
+          p: 1,
+          overflowX: 'auto'
+        }}>
           {currentPath && (
-            <IconButton onClick={handleNavigateBack} size="small" sx={{ mr: 1 }}>
-              <ArrowBackIcon />
-            </IconButton>
+            <Tooltip title="Go back">
+              <IconButton 
+                onClick={handleNavigateBack} 
+                size="small" 
+                sx={{ 
+                  mr: 0.5, 
+                  bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                  '&:hover': {
+                    bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)', 
+                  }
+                }}
+              >
+                <ArrowBackIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           )}
           <Breadcrumbs 
-            separator={<NavigateNextIcon fontSize="small" />}
+            separator={<NavigateNextIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
             aria-label="breadcrumb"
+            sx={{ 
+              flexWrap: 'nowrap', 
+              whiteSpace: 'nowrap',
+              '.MuiBreadcrumbs-ol': {
+                flexWrap: 'nowrap'
+              },
+              '.MuiBreadcrumbs-li': {
+                display: 'flex'
+              }
+            }}
           >
             {renderBreadcrumbs()}
           </Breadcrumbs>
         </Box>
         
-        <Divider />
-        
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-            <CircularProgress />
+            <CircularProgress size={30} />
           </Box>
         ) : error ? (
-          <Typography color="error" sx={{ my: 2 }}>
-            {error}
-          </Typography>
+          <Box 
+            sx={{ 
+              my: 2, 
+              p: 2, 
+              borderRadius: 2, 
+              bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : '#ffebee',
+              border: '1px solid',
+              borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.3)' : '#ffcdd2',
+            }}
+          >
+            <Typography color="error.main" variant="body2" sx={{ fontWeight: 500 }}>
+              {error}
+            </Typography>
+          </Box>
         ) : (
-          <List>
+          <List 
+            sx={{ 
+              pt: 0.5, 
+              pb: 0.5,
+              borderRadius: 1,
+              bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.01)',
+            }}
+            dense
+          >
             {/* Ensure files is an array and check its length safely */}
             {Array.isArray(files) && files.length > 0 ? (
               files.map((file) => (
                 <ListItem
                   key={file.path || Math.random()}
                   component="div"
-                  sx={{ cursor: 'pointer' }}
+                  sx={{ 
+                    cursor: 'pointer',
+                    py: 0.75,
+                    px: 1,
+                    borderRadius: 1,
+                    mb: 0.5,
+                    bgcolor: 'background.paper',
+                    '&:hover': {
+                      bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+                    },
+                    transition: 'background-color 0.2s',
+                    border: '1px solid',
+                    borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+                  }}
                   onClick={() => handleFileClick(file)}
                   onContextMenu={(e) => handleContextMenu(e, file)}
                 >
-                  <ListItemIcon>
-                    {file.isDirectory ? <FolderIcon color="primary" /> : <FileIcon />}
+                  <ListItemIcon sx={{ minWidth: { xs: 36, sm: 42 } }}>
+                    {file.isDirectory ? 
+                      <FolderIcon color="primary" fontSize="small" /> : 
+                      <FileIcon fontSize="small" sx={{ color: theme => theme.palette.mode === 'dark' ? '#aaa' : '#666' }} />
+                    }
                   </ListItemIcon>
                   <ListItemText
-                    primary={file.name}
-                    secondary={file.isDirectory ? `${file.modifiedAt ? new Date(file.modifiedAt).toLocaleString() : ''}` : `${fileService.formatFileSize(file.size)} • ${file.modifiedAt ? new Date(file.modifiedAt).toLocaleString() : ''}`}
+                    primary={
+                      <Typography 
+                        variant="body2" 
+                        component="div" 
+                        sx={{ 
+                          fontWeight: file.isDirectory ? 600 : 400,
+                          color: file.isDirectory ? 'primary.main' : 'text.primary',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {file.name}
+                      </Typography>
+                    }
+                    secondary={
+                      <Typography 
+                        variant="caption" 
+                        component="div" 
+                        sx={{ 
+                          fontSize: '0.75rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          color: 'text.secondary'
+                        }}
+                      >
+                        {file.isDirectory 
+                          ? `${file.modifiedAt ? new Date(file.modifiedAt).toLocaleString() : ''}` 
+                          : `${fileService.formatFileSize(file.size)} • ${file.modifiedAt ? new Date(file.modifiedAt).toLocaleString() : ''}`
+                        }
+                      </Typography>
+                    }
                   />
                   <Box>
-                    {/* Replace direct action buttons with a 3-dot menu */}
                     {canEdit && (
-                      <IconButton onClick={(e) => handleActionMenuOpen(file, e)}>
-                        <MoreIcon />
+                      <IconButton 
+                        onClick={(e) => handleActionMenuOpen(file, e)}
+                        size="small"
+                        sx={{ 
+                          ml: 1,
+                          color: 'text.secondary',
+                          '&:hover': {
+                            color: 'primary.main',
+                            bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                          }
+                        }}
+                      >
+                        <MoreIcon fontSize="small" />
                       </IconButton>
                     )}
                   </Box>
                 </ListItem>
               ))
             ) : (
-              <Typography variant="body2" sx={{ p: 2 }}>
-                This folder is empty
-              </Typography>
+              <Box 
+                sx={{ 
+                  p: 3, 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 2,
+                  bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+                  border: '1px dashed',
+                  borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                }}
+              >
+                <FolderIcon sx={{ fontSize: '2.5rem', opacity: 0.5, mb: 1 }} />
+                <Typography variant="body2" sx={{ opacity: 0.7, fontWeight: 500 }}>
+                  This folder is empty
+                </Typography>
+              </Box>
             )}
           </List>
         )}
       </Paper>
       
-      {/* Action Menu (3-dot menu) */}
+      {/* Action Menu (3-dot menu) with improved styling */}
       <Menu
         anchorEl={actionMenuAnchor}
         open={Boolean(actionMenuAnchor)}
         onClose={handleActionMenuClose}
+        elevation={2}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        sx={{ 
+          '& .MuiPaper-root': {
+            borderRadius: 2,
+            minWidth: 180,
+          }
+        }}
       >
         {/* Rename option for all items */}
-        <MenuItem onClick={() => handleRenameClick(selectedItem)}>
+        <MenuItem onClick={() => handleRenameClick(selectedItem)} sx={{ borderRadius: 1 }}>
           <ListItemIcon>
-            <EditIcon fontSize="small" />
+            <EditIcon fontSize="small" color="primary" />
           </ListItemIcon>
-          <ListItemText>Rename</ListItemText>
+          <ListItemText primary="Rename" />
         </MenuItem>
         
         {/* Download option for files */}
         {selectedItem && !selectedItem.isDirectory && canDownload && (
-          <MenuItem onClick={() => {
-            handleActionMenuClose();
-            handleDownloadFile(selectedItem);
-          }}>
+          <MenuItem 
+            onClick={() => {
+              handleActionMenuClose();
+              handleDownloadFile(selectedItem);
+            }}
+            sx={{ borderRadius: 1 }}
+          >
             <ListItemIcon>
-              <DownloadIcon fontSize="small" />
+              <DownloadIcon fontSize="small" color="info" />
             </ListItemIcon>
-            <ListItemText>Download</ListItemText>
+            <ListItemText primary="Download" />
           </MenuItem>
         )}
         
         {/* Download as ZIP option for folders */}
         {selectedItem && selectedItem.isDirectory && canDownload && (
-          <MenuItem onClick={() => handleDownloadFolder(selectedItem)}>
+          <MenuItem 
+            onClick={() => handleDownloadFolder(selectedItem)}
+            sx={{ borderRadius: 1 }}
+          >
             <ListItemIcon>
-              <ArchiveIcon fontSize="small" />
+              <ArchiveIcon fontSize="small" color="info" />
             </ListItemIcon>
-            <ListItemText>Download as ZIP</ListItemText>
+            <ListItemText primary="Download as ZIP" />
           </MenuItem>
         )}
         
+        <Divider sx={{ my: 0.5 }} />
+        
         {/* Delete option for all items */}
         {canEdit && (
-          <MenuItem onClick={() => handleDeleteClick(selectedItem)}>
+          <MenuItem 
+            onClick={() => handleDeleteClick(selectedItem)}
+            sx={{ borderRadius: 1 }}
+          >
             <ListItemIcon>
               <DeleteIcon fontSize="small" color="error" />
             </ListItemIcon>
-            <ListItemText sx={{ color: 'error.main' }}>Delete</ListItemText>
+            <ListItemText primary="Delete" sx={{ color: 'error.main' }} />
           </MenuItem>
         )}
       </Menu>
       
-      {/* Rename Dialog */}
-      <Dialog open={renameDialogOpen} onClose={handleRenameClose}>
-        <DialogTitle>Rename {itemToRename?.isDirectory ? 'Folder' : 'File'}</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="New Name"
-            type="text"
-            fullWidth
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleRenameClose}>Cancel</Button>
-          <Button onClick={handleRename} color="primary">Rename</Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteConfirmOpen} onClose={handleDeleteConfirmClose}>
-        <DialogTitle>Confirm Deletion</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete {itemToDelete?.isDirectory ? 'folder' : 'file'} 
-            <strong> {itemToDelete?.name}</strong>?
-          </Typography>
-          {itemToDelete?.isDirectory && (
-            <Typography color="error" sx={{ mt: 2 }}>
-              Warning: All contents of this folder will be permanently deleted!
-            </Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleDeleteConfirmClose}>Cancel</Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-      
+      {/* Context Menu with improved styling */}
       <Menu
         open={contextMenu !== null}
         onClose={handleCloseContextMenu}
@@ -574,56 +712,152 @@ const FileBrowser = () => {
             ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
             : undefined
         }
+        elevation={2}
+        sx={{ 
+          '& .MuiPaper-root': {
+            borderRadius: 2,
+            minWidth: 180,
+          }
+        }}
       >
-        <MenuItem onClick={() => {
-          handleCloseContextMenu();
-          handleFileClick(contextMenu.file);
-        }}>
-          Open
-        </MenuItem>
-        <MenuItem onClick={() => {
-          handleCloseContextMenu();
-          handleRenameClick(contextMenu.file);
-        }}>
-          Rename
-        </MenuItem>
-        {contextMenu?.file?.isDirectory ? (
-          <MenuItem onClick={() => {
+        <MenuItem 
+          onClick={() => {
             handleCloseContextMenu();
-            handleDownloadFolder(contextMenu.file);
-          }}>
-            Download as ZIP
+            handleFileClick(contextMenu.file);
+          }}
+          sx={{ borderRadius: 1 }}
+        >
+          <ListItemIcon>
+            {contextMenu?.file?.isDirectory ? 
+              <FolderIcon fontSize="small" color="primary" /> : 
+              <FileIcon fontSize="small" />
+            }
+          </ListItemIcon>
+          <ListItemText primary="Open" />
+        </MenuItem>
+        
+        <MenuItem 
+          onClick={() => {
+            handleCloseContextMenu();
+            handleRenameClick(contextMenu.file);
+          }}
+          sx={{ borderRadius: 1 }}
+        >
+          <ListItemIcon>
+            <EditIcon fontSize="small" color="primary" />
+          </ListItemIcon>
+          <ListItemText primary="Rename" />
+        </MenuItem>
+        
+        {contextMenu?.file?.isDirectory ? (
+          <MenuItem 
+            onClick={() => {
+              handleCloseContextMenu();
+              handleDownloadFolder(contextMenu.file);
+            }}
+            sx={{ borderRadius: 1 }}
+          >
+            <ListItemIcon>
+              <ArchiveIcon fontSize="small" color="info" />
+            </ListItemIcon>
+            <ListItemText primary="Download as ZIP" />
           </MenuItem>
         ) : canDownload ? (
-          <MenuItem onClick={() => {
-            handleCloseContextMenu();
-            handleDownloadFile(contextMenu.file);
-          }}>
-            Download
+          <MenuItem 
+            onClick={() => {
+              handleCloseContextMenu();
+              handleDownloadFile(contextMenu.file);
+            }}
+            sx={{ borderRadius: 1 }}
+          >
+            <ListItemIcon>
+              <DownloadIcon fontSize="small" color="info" />
+            </ListItemIcon>
+            <ListItemText primary="Download" />
           </MenuItem>
         ) : null}
+        
+        <Divider sx={{ my: 0.5 }} />
+        
         {canEdit && (
-          <MenuItem onClick={() => {
-            handleCloseContextMenu();
-            handleDeleteFile(contextMenu.file);
-          }}>
-            Delete
+          <MenuItem 
+            onClick={() => {
+              handleCloseContextMenu();
+              handleDeleteFile(contextMenu.file);
+            }}
+            sx={{ borderRadius: 1 }}
+          >
+            <ListItemIcon>
+              <DeleteIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText primary="Delete" sx={{ color: 'error.main' }} />
           </MenuItem>
         )}
       </Menu>
-      <Dialog open={uploadDialogOpen} onClose={handleUploadClose}>
-        <DialogTitle>Upload File</DialogTitle>
-        <DialogContent>
-          <input type="file" onChange={handleFileInputChange} />
+      
+      {/* Improved Dialog styling for all dialogs */}
+      <Dialog 
+        open={uploadDialogOpen} 
+        onClose={handleUploadClose}
+        PaperProps={{
+          elevation: 2,
+          sx: { borderRadius: 3 }
+        }}
+      >
+        <DialogTitle sx={{ 
+          pb: 1,
+          borderBottom: '1px solid',
+          borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+          fontWeight: 600
+        }}>
+          Upload File
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          <input 
+            type="file" 
+            onChange={handleFileInputChange} 
+            style={{ 
+              width: '100%',
+              padding: '8px',
+              border: '1px solid',
+              borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+              borderRadius: '8px',
+            }}
+          />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleUploadClose}>Cancel</Button>
-          <Button onClick={handleUploadFile}>Upload</Button>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button onClick={handleUploadClose} variant="outlined" size="small">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleUploadFile} 
+            variant="contained" 
+            color="primary"
+            size="small"
+            disabled={!fileToUpload}
+          >
+            Upload
+          </Button>
         </DialogActions>
       </Dialog>
-      <Dialog open={newFolderDialogOpen} onClose={handleNewFolderClose}>
-        <DialogTitle>Create New Folder</DialogTitle>
-        <DialogContent>
+      
+      <Dialog 
+        open={newFolderDialogOpen} 
+        onClose={handleNewFolderClose}
+        PaperProps={{
+          elevation: 2,
+          sx: { borderRadius: 3 }
+        }}
+      >
+        <DialogTitle sx={{ 
+          pb: 1,
+          borderBottom: '1px solid',
+          borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+          fontWeight: 600
+        }}>
+          Create New Folder
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
           <TextField
             autoFocus
             margin="dense"
@@ -632,16 +866,46 @@ const FileBrowser = () => {
             fullWidth
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
+            variant="outlined"
+            size="small"
+            InputProps={{
+              sx: { borderRadius: 2 }
+            }}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleNewFolderClose}>Cancel</Button>
-          <Button onClick={handleCreateFolder}>Create</Button>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button onClick={handleNewFolderClose} variant="outlined" size="small">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleCreateFolder} 
+            variant="contained" 
+            color="primary"
+            disabled={!newFolderName.trim()}
+            size="small"
+          >
+            Create
+          </Button>
         </DialogActions>
       </Dialog>
-      <Dialog open={renameDialogOpen} onClose={handleRenameClose}>
-        <DialogTitle>Rename {itemToRename?.isDirectory ? 'Folder' : 'File'}</DialogTitle>
-        <DialogContent>
+      
+      <Dialog 
+        open={renameDialogOpen} 
+        onClose={handleRenameClose}
+        PaperProps={{
+          elevation: 2,
+          sx: { borderRadius: 3 }
+        }}
+      >
+        <DialogTitle sx={{ 
+          pb: 1,
+          borderBottom: '1px solid',
+          borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+          fontWeight: 600
+        }}>
+          Rename {itemToRename?.isDirectory ? 'Folder' : 'File'}
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
           <TextField
             autoFocus
             margin="dense"
@@ -650,20 +914,101 @@ const FileBrowser = () => {
             fullWidth
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
+            variant="outlined"
+            size="small"
+            InputProps={{
+              sx: { borderRadius: 2 }
+            }}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleRenameClose}>Cancel</Button>
-          <Button onClick={handleRename}>Rename</Button>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button onClick={handleRenameClose} variant="outlined" size="small">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleRename} 
+            variant="contained" 
+            color="primary"
+            disabled={!newName.trim()}
+            size="small"
+          >
+            Rename
+          </Button>
         </DialogActions>
       </Dialog>
+      
+      <Dialog 
+        open={deleteConfirmOpen} 
+        onClose={handleDeleteConfirmClose}
+        PaperProps={{
+          elevation: 2,
+          sx: { borderRadius: 3 }
+        }}
+      >
+        <DialogTitle sx={{ 
+          pb: 1,
+          borderBottom: '1px solid',
+          borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+          fontWeight: 600,
+          color: 'error.main'
+        }}>
+          Confirm Deletion
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          <Typography variant="body2">
+            Are you sure you want to delete {itemToDelete?.isDirectory ? 'folder' : 'file'}
+            <Typography component="span" fontWeight="bold" sx={{ mx: 0.5 }}>
+              {itemToDelete?.name}
+            </Typography>
+            ?
+          </Typography>
+          {itemToDelete?.isDirectory && (
+            <Box sx={{ 
+              mt: 2, 
+              p: 1.5, 
+              borderRadius: 2, 
+              bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : '#ffebee',
+              border: '1px solid',
+              borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.3)' : '#ffcdd2',
+            }}>
+              <Typography color="error" variant="body2" fontWeight={500} fontSize="0.875rem">
+                Warning: All contents of this folder will be permanently deleted!
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button onClick={handleDeleteConfirmClose} variant="outlined" size="small">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm} 
+            color="error" 
+            variant="contained"
+            size="small"
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
       >
-        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity} 
+          sx={{ 
+            width: '100%', 
+            borderRadius: 2,
+            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)'
+          }}
+          variant="filled"
+          elevation={6}
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>

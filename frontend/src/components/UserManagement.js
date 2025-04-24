@@ -318,15 +318,17 @@ const UserManagement = () => {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 ,paddingTop: 4}}>
         <Typography variant="h4" component="h2">
           User Management
         </Typography>
         <Button
+    
           variant="contained"
           color="primary"
           startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog('add')}
+          onClick={() => handleOpenDialog('add')
+          }
         >
           Add User
         </Button>

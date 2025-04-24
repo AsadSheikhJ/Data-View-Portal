@@ -22,17 +22,5 @@
       "edit": false,
       "download": false
     }
-  },
-  {
-    "id": 3,
-    "name": "ABC",
-    "email": "abc123@example.com",
-    "password": "$2b$10$E3YVsZbibg1aSMuI96PUqu.nFnAfwpvXKFzjqGhzFUf9B2s3BZjSe",
-    "role": "user",
-    "permissions": {
-      "view": true,
-      "edit": true,
-      "download": false
-    }
   }
 ]
