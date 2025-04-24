@@ -345,7 +345,7 @@ const Dashboard = ({ colorMode }) => {
         },
         marginLeft: {
           xs: 0,
-          sm: drawerOpen ? 3 : `-${drawerWidth-4}px`
+          sm: drawerOpen ? 2 : `-${drawerWidth-4}px`
         },
         transition: theme => theme.transitions.create(['margin', 'width'], {
           easing: theme.transitions.easing.sharp,
@@ -358,6 +358,7 @@ const Dashboard = ({ colorMode }) => {
         <Paper 
           elevation={0} 
           sx={{ 
+            mt: 2,
             p: 2, 
             mb: 2, 
             borderRadius: 2,
@@ -369,7 +370,7 @@ const Dashboard = ({ colorMode }) => {
               : '1px solid rgba(0, 0, 0, 0.06)',
           }}
         >
-          <Typography variant="h5" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+          <Typography variant="h5" sx={{ fontWeight: 600, color: theme.palette.text.primary, }}>
             {getGreeting()}, {firstName}!
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>

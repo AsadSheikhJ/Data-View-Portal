@@ -221,11 +221,21 @@ const PublicRoute = ({ children }) => {
 };
 
 function AppContent() {
-  const [mode, setMode] = useState('light');
+  // Use localStorage to remember theme preference, default to 'light' if not set
+  const [mode, setMode] = useState(() => {
+    const savedMode = localStorage.getItem('themeMode');
+    return savedMode ? savedMode : 'light';
+  });
+  
   const theme = useCustomTheme(mode);
   
   const toggleColorMode = () => {
-    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+    setMode((prevMode) => {
+      const newMode = prevMode === 'light' ? 'dark' : 'light';
+      // Save to localStorage
+      localStorage.setItem('themeMode', newMode);
+      return newMode;
+    });
   };
   
   return (
