@@ -2,15 +2,51 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs').promises;
+const http = require('http');
+const net = require('net');
 const fileRoutes = require('./routes/fileRoutes');
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+let PORT = process.env.PORT || 5000;
+
+// Function to check if a port is in use
+const isPortInUse = async (port) => {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    
+    server.once('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+      server.close();
+    });
+    
+    server.once('listening', () => {
+      server.close();
+      resolve(false);
+    });
+    
+    server.listen(port);
+  });
+};
+
+// Function to find an available port starting from the specified one
+const findAvailablePort = async (startPort) => {
+  let port = startPort;
+  while (await isPortInUse(port)) {
+    console.log(`Port ${port} is in use, trying next port...`);
+    port++;
+  }
+  return port;
+};
 
 // Enable CORS
-app.use(cors());
+const corsOptions = require('./config/cors');
+app.use(cors(corsOptions));
 
 // Parse JSON bodies - make sure this is added before routes
 app.use(express.json());
@@ -165,26 +201,32 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  const directoryConfig = require('./config/directoryConfig');
-  
-  console.log(`Server running on port ${PORT}`);
-  console.log(`API available at http://localhost:${PORT}/api`);
-  
-  // Check if the directory exists
-  const fs = require('fs');
-  try {
-    const dirPath = directoryConfig.customDirectoryPath || directoryConfig.filesDir;
-    const stats = fs.statSync(dirPath);
-    if (stats.isDirectory()) {
-      // List a few files as a test
-      // console.log(`Directory working successfully`);
-    } else {
-      console.error(`Path exists but is not a directory: ${dirPath}`);
+const startServer = async () => {
+  PORT = await findAvailablePort(PORT);
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    const directoryConfig = require('./config/directoryConfig');
+    const networkInfo = require('./utils/networkInfo');
+    
+    // Display network access information
+    networkInfo.printAccessUrls(PORT);
+    
+    // Check if the directory exists
+    const fs = require('fs');
+    try {
+      const dirPath = directoryConfig.customDirectoryPath || directoryConfig.filesDir;
+      const stats = fs.statSync(dirPath);
+      if (stats.isDirectory()) {
+        // List a few files as a test
+        // console.log(`Directory working successfully`);
+      } else {
+        console.error(`Path exists but is not a directory: ${dirPath}`);
+      }
+    } catch (error) {
+      console.error(`Error accessing directory: ${error.message}`);
     }
-  } catch (error) {
-    console.error(`Error accessing directory: ${error.message}`);
-  }
-});
+  });
+};
+
+startServer();
 
 module.exports = app;

@@ -8,6 +8,8 @@ const fileRoutes = require('./routes/fileRoutes');
 
 // Initialize express app
 const app = express();
+// Define PORT but don't hardcode server start
+// The actual port selection will be managed by bin/www
 const PORT = process.env.PORT || 5000;
 
 // JWT Secret Key
@@ -18,7 +20,9 @@ const dataDir = path.join(__dirname, 'data');
 const usersFilePath = path.join(dataDir, 'users.json');
 
 // Middleware
-app.use(cors());
+// Use our dynamic CORS configuration
+const corsOptions = require('./config/cors');
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

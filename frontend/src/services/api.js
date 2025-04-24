@@ -1,11 +1,25 @@
 import axios from 'axios';
 
-// API base URL - adjust as needed
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// Flexible API base URL configuration
+// First check for environment variable, then check window.location to support accessing from other devices
+const getBaseUrl = () => {
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // When accessing from another device on the network,
+  // use the same host but with backend port
+  const port = process.env.REACT_APP_API_PORT || '5000'; 
+  
+  // For development on the same machine, fallback to localhost
+  return process.env.NODE_ENV === 'development' 
+    ? `http://localhost:${port}`
+    : `${window.location.protocol}//${window.location.hostname}:${port}`;
+};
 
 // Create an axios instance
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: getBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
