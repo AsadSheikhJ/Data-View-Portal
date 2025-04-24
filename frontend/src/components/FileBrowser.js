@@ -55,7 +55,6 @@ const FileBrowser = () => {
     setLoading(true);
     setError(null);
     try {
-      console.log(`Loading files for path: ${currentPath}`);
       const data = await fileService.listFiles(currentPath);
       
       // Ensure data is an array

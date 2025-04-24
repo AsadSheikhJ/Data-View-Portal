@@ -22,7 +22,7 @@ function adminOnly(req, res, next) {
 // Get all users (admin only)
 router.get('/', async (req, res) => {
   try {
-    console.log('Getting all users');
+    // console.log('Getting all users');
     
     // Get users from file storage
     const users = await UserModel.getUsers();
@@ -33,7 +33,7 @@ router.get('/', async (req, res) => {
       return userWithoutPassword;
     });
     
-    console.log(`Found ${safeUsers.length} users`);
+    // console.log(`Found ${safeUsers.length} users`);
     
     // Return JSON response
     res.setHeader('Content-Type', 'application/json');

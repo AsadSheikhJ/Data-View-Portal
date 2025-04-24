@@ -9,13 +9,13 @@ const directoryConfig = require('../config/directoryConfig');
 
 // Debug the directory configuration
 console.log('Files directory path:', directoryConfig.filesDir);
-console.log('Using custom path:', directoryConfig.isUsingCustomPath ? 'Yes' : 'No');
+// console.log('Using custom path:', directoryConfig.isUsingCustomPath ? 'Yes' : 'No');
 
 // Ensure directories exist
 async function ensureDirectoryExists(dir) {
   try {
     await fs.mkdir(dir, { recursive: true });
-    console.log(`Directory exists or created: ${dir}`);
+    // console.log(`Directory exists or created: ${dir}`);
     return true;
   } catch (error) {
     console.error(`Error creating directory ${dir}:`, error);
@@ -53,9 +53,9 @@ async function ensureDirectoryExists(dir) {
       try {
         const stats = await fs.stat(directoryConfig.filesDir);
         if (stats.isDirectory()) {
-          console.log(`Custom directory exists and is accessible: ${directoryConfig.filesDir}`);
-          const files = await fs.readdir(directoryConfig.filesDir);
-          console.log(`Found ${files.length} items in custom directory`);
+          // console.log(`Custom directory exists and is accessible: ${directoryConfig.filesDir}`);
+          // const files = await fs.readdir(directoryConfig.filesDir);
+          // console.log(`Found ${files.length} items in custom directory`);
         } else {
           console.error(`Custom path exists but is not a directory: ${directoryConfig.filesDir}`);
         }
@@ -117,7 +117,6 @@ router.get('/', async (req, res) => {
       dirPath = directoryConfig.filesDir;
     }
     
-    console.log(`Listing files in: ${dirPath}`);
     
     try {
       // Check if directory exists
@@ -129,7 +128,6 @@ router.get('/', async (req, res) => {
       
       // Read directory contents
       const items = await fs.readdir(dirPath, { withFileTypes: true });
-      console.log(`Found ${items.length} items in directory: ${dirPath}`);
       
       // Generate file objects
       const filesList = await Promise.all(items.map(async (item) => {
@@ -379,7 +377,6 @@ router.get('/config', async (req, res) => {
       isUsingCustomPath: directoryConfig.isUsingCustomPath
     };
     
-    console.log('Sending directory config:', configData);
     return res.json(configData);
   } catch (error) {
     console.error('Error getting directory config:', error);

@@ -63,7 +63,6 @@ export const AuthProvider = ({ children }) => {
           if (userResponse.ok) {
             const userData = await userResponse.json();
             setUser(userData);
-            console.log('User data fetched successfully:', userData);
           } else {
             // Only if /me fails, try verify
             const verifyResponse = await fetch(`${API_URL}/api/auth/verify`, {

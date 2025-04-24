@@ -50,7 +50,6 @@ app.get('/api/files/config', (req, res) => {
         const configContent = fs.readFileSync(configPath, 'utf8');
         const config = JSON.parse(configContent);
         customDirectoryPath = config.directoryPath || '';
-        console.log('Found custom directory path:', customDirectoryPath);
       } catch (parseError) {
         console.error('Error parsing config file:', parseError);
       }
@@ -69,7 +68,6 @@ app.get('/api/files/config', (req, res) => {
       isUsingCustomPath: !!customDirectoryPath
     };
     
-    console.log('Sending directory config data:', configData);
     res.json(configData);
   } catch (error) {
     console.error('Error in GET /api/files/config:', error);
@@ -172,7 +170,6 @@ app.listen(PORT, () => {
   
   console.log(`Server running on port ${PORT}`);
   console.log(`API available at http://localhost:${PORT}/api`);
-  console.log(`Using directory path: ${directoryConfig.customDirectoryPath || directoryConfig.filesDir}`);
   
   // Check if the directory exists
   const fs = require('fs');
@@ -180,10 +177,8 @@ app.listen(PORT, () => {
     const dirPath = directoryConfig.customDirectoryPath || directoryConfig.filesDir;
     const stats = fs.statSync(dirPath);
     if (stats.isDirectory()) {
-      console.log(`Directory exists and is accessible: ${dirPath}`);
       // List a few files as a test
-      const files = fs.readdirSync(dirPath).slice(0, 5);
-      console.log(`Sample files in directory: ${files.join(', ')}`);
+      // console.log(`Directory working successfully`);
     } else {
       console.error(`Path exists but is not a directory: ${dirPath}`);
     }

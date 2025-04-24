@@ -74,7 +74,7 @@ const UserManagement = () => {
       // Get token from localStorage if not available in context
       const authToken = token || localStorage.getItem('token');
       
-      console.log('Fetching users from:', `${API_URL}/api/users`);
+      // console.log('Fetching users from:', `${API_URL}/api/users`);
       
       if (!authToken) {
         throw new Error('Authentication token not available');
@@ -89,8 +89,7 @@ const UserManagement = () => {
       });
       
       // Log full response for debugging
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
+      // console.log('Response status:', response.status);
       
       // Check if response is ok
       if (!response.ok) {
@@ -108,7 +107,6 @@ const UserManagement = () => {
       }
       
       const usersData = await response.json();
-      console.log('Users fetched successfully:', usersData);
       
       // Ensure users is always an array
       setUsers(Array.isArray(usersData) ? usersData : []);

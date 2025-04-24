@@ -39,11 +39,10 @@ console.log('API URL configured as:', API_URL);
 // Get directory configuration - with debug logging
 const getDirectoryConfig = async () => {
   try {
-    console.log('Fetching directory configuration');
     
     // Use direct URL with full path
     const fullUrl = `${API_URL}/api/files/config`;
-    console.log(`Making direct request to: ${fullUrl}`);
+    // console.log(`Making direct request to: ${fullUrl}`);
     
     const response = await fetch(fullUrl, {
       method: 'GET',
@@ -53,17 +52,16 @@ const getDirectoryConfig = async () => {
     });
     
     // Log full response details for debugging
-    console.log('Response status:', response.status);
-    console.log('Response headers:', response.headers);
+    // console.log('Response status:', response.status);
     
     const responseText = await response.text();
-    console.log('Raw response:', responseText);
+    // console.log('Raw response:', responseText);
     
     // Try to parse as JSON if possible
     let data;
     try {
       data = JSON.parse(responseText);
-      console.log('Parsed response data:', data);
+      // console.log('Parsed response data:', data);
     } catch (parseError) {
       console.error('Failed to parse response as JSON:', parseError);
       throw new Error(`Invalid JSON response: ${responseText}`);
@@ -151,7 +149,6 @@ const getRootDirectories = async () => {
 // List files in a directory
 const listFiles = async (directory = '') => {
   try {
-    console.log(`Listing files in directory: ${directory}`);
     
     // Make sure directory is properly encoded for URL
     const encodedDir = encodeURIComponent(directory);
@@ -161,7 +158,6 @@ const listFiles = async (directory = '') => {
     
     // Ensure we return an array
     const files = Array.isArray(response.data) ? response.data : [];
-    console.log('Files API response:', files);
     
     return files;
   } catch (error) {
