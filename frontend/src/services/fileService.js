@@ -226,6 +226,54 @@ const downloadFile = async (filePath) => {
   }
 };
 
+// Download a folder as zip
+const downloadFolder = async (folderPath) => {
+  try {
+    console.log(`Downloading folder as zip: ${folderPath}`);
+    
+    const response = await api.get(`/api/files/download-folder/${encodeURIComponent(folderPath)}`, {
+      responseType: 'blob'
+    });
+    
+    // Create a URL for the blob
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    
+    // Create a link and trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    const folderName = folderPath.split('/').pop() || 'folder';
+    link.setAttribute('download', `${folderName}.zip`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    
+    // Clean up
+    window.URL.revokeObjectURL(url);
+    
+    return true;
+  } catch (error) {
+    console.error('Error downloading folder:', error);
+    throw error;
+  }
+};
+
+// Rename a file or folder
+const renameItem = async (oldPath, newName) => {
+  try {
+    console.log(`Renaming ${oldPath} to ${newName}`);
+    
+    const response = await api.put('/api/files/rename', {
+      oldPath,
+      newName
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error renaming item:', error);
+    throw error;
+  }
+};
+
 // Delete a file or directory
 const deleteItem = async (path) => {
   try {
@@ -261,8 +309,10 @@ const fileService = {
   listFiles,
   uploadFile,
   downloadFile,
+  downloadFolder,  // New function
   deleteItem,
   createDirectory,
+  renameItem,       // New function
   formatFileSize,
   getDirectoryConfig,
   updateDirectoryConfig,

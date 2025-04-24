@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const multer = require('multer');
+const archiver = require('archiver'); // Add this dependency for zip functionality
 const directoryConfig = require('../config/directoryConfig');
 
 // Debug the directory configuration
@@ -244,6 +246,94 @@ router.get('/download/:filePath(*)', async (req, res) => {
   } catch (error) {
     console.error('Error downloading file:', error);
     res.status(404).json({ message: 'File not found' });
+  }
+});
+
+// Download a folder as zip
+router.get('/download-folder/:folderPath(*)', async (req, res) => {
+  try {
+    const folderPath = req.params.folderPath;
+    const sourcePath = path.join(directoryConfig.filesDir, folderPath);
+    
+    console.log(`Preparing to zip folder: ${sourcePath}`);
+    
+    // Verify folder exists
+    const stats = await fs.stat(sourcePath);
+    if (!stats.isDirectory()) {
+      return res.status(400).json({ message: 'Specified path is not a directory' });
+    }
+    
+    // Set up the response
+    const folderName = path.basename(sourcePath);
+    res.attachment(`${folderName}.zip`);
+    res.setHeader('Content-Type', 'application/zip');
+    
+    // Create zip archive
+    const archive = archiver('zip', {
+      zlib: { level: 5 } // Compression level
+    });
+    
+    // Pipe archive to response
+    archive.pipe(res);
+    
+    // Add folder to archive
+    archive.directory(sourcePath, false);
+    
+    // Finalize archive
+    await archive.finalize();
+    
+    console.log(`Folder "${folderName}" zipped and sent successfully`);
+  } catch (error) {
+    console.error('Error zipping folder:', error);
+    res.status(500).json({
+      message: 'Error downloading folder',
+      error: error.message
+    });
+  }
+});
+
+// Rename a file or folder
+router.put('/rename', async (req, res) => {
+  try {
+    const { oldPath, newName } = req.body;
+    
+    if (!oldPath || !newName) {
+      return res.status(400).json({ message: 'Old path and new name are required' });
+    }
+    
+    console.log(`Renaming: ${oldPath} to ${newName}`);
+    
+    const sourcePath = path.join(directoryConfig.filesDir, oldPath);
+    const parentDir = path.dirname(sourcePath);
+    const newPath = path.join(parentDir, newName);
+    
+    // Check if source exists
+    if (!fsSync.existsSync(sourcePath)) {
+      return res.status(404).json({ message: 'Source file or directory not found' });
+    }
+    
+    // Check if destination already exists
+    if (fsSync.existsSync(newPath)) {
+      return res.status(409).json({ message: 'A file or directory with this name already exists' });
+    }
+    
+    // Perform rename
+    await fs.rename(sourcePath, newPath);
+    
+    const relativePath = path.relative(directoryConfig.filesDir, newPath).replace(/\\/g, '/');
+    
+    res.json({
+      message: 'Rename successful',
+      oldPath,
+      newPath: relativePath,
+      name: newName
+    });
+  } catch (error) {
+    console.error('Error renaming item:', error);
+    res.status(500).json({
+      message: 'Error renaming item',
+      error: error.message
+    });
   }
 });
 

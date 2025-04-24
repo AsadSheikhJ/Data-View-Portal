@@ -14,7 +14,9 @@ import {
   CreateNewFolder as NewFolderIcon,
   MoreVert as MoreIcon,
   NavigateNext as NavigateNextIcon,
-  ArrowBack as ArrowBackIcon
+  ArrowBack as ArrowBackIcon,
+  Edit as EditIcon,
+  Archive as ArchiveIcon
 } from '@mui/icons-material';
 import fileService from '../services/fileService';
 import { useAuth } from '../contexts/AuthContext';
@@ -35,6 +37,13 @@ const FileBrowser = () => {
     message: '',
     severity: 'info'
   });
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [itemToRename, setItemToRename] = useState(null);
+  const [newName, setNewName] = useState('');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const { user } = useAuth();
   // Safely access permissions with default values if user or permissions is undefined
@@ -227,6 +236,123 @@ const FileBrowser = () => {
     setSnackbar({ ...snackbar, open: false });
   };
 
+  const handleRenameClick = (file, event) => {
+    if (event) {
+      event.stopPropagation();
+    }
+    setItemToRename(file);
+    setNewName(file.name);
+    setRenameDialogOpen(true);
+  };
+
+  const handleRenameClose = () => {
+    setRenameDialogOpen(false);
+    setItemToRename(null);
+    setNewName('');
+  };
+
+  const handleRename = async () => {
+    if (!itemToRename || !newName.trim()) return;
+    
+    try {
+      setLoading(true);
+      await fileService.renameItem(itemToRename.path, newName);
+      loadFiles();
+      setRenameDialogOpen(false);
+      setSnackbar({
+        open: true,
+        message: 'Item renamed successfully',
+        severity: 'success'
+      });
+    } catch (err) {
+      setError(`Failed to rename: ${err.message || 'Unknown error'}`);
+      setSnackbar({
+        open: true,
+        message: 'Failed to rename item',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadFolder = async (folder, event) => {
+    if (event) {
+      event.stopPropagation();
+    }
+    
+    try {
+      setLoading(true);
+      await fileService.downloadFolder(folder.path);
+      setSnackbar({
+        open: true,
+        message: 'Folder download started',
+        severity: 'success'
+      });
+    } catch (err) {
+      setError(`Failed to download folder: ${err.message || 'Unknown error'}`);
+      setSnackbar({
+        open: true,
+        message: 'Failed to download folder',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle action menu open
+  const handleActionMenuOpen = (file, event) => {
+    event.stopPropagation();
+    setSelectedItem(file);
+    setActionMenuAnchor(event.currentTarget);
+  };
+
+  // Handle action menu close
+  const handleActionMenuClose = () => {
+    setActionMenuAnchor(null);
+  };
+
+  // Handle delete confirmation open
+  const handleDeleteClick = (file) => {
+    handleActionMenuClose();
+    setItemToDelete(file);
+    setDeleteConfirmOpen(true);
+  };
+
+  // Handle delete confirmation close
+  const handleDeleteConfirmClose = () => {
+    setDeleteConfirmOpen(false);
+    setItemToDelete(null);
+  };
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      setLoading(true);
+      await fileService.deleteItem(itemToDelete.path);
+      loadFiles();
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
+      setSnackbar({
+        open: true,
+        message: 'Item deleted successfully',
+        severity: 'success'
+      });
+    } catch (err) {
+      setError(`Failed to delete: ${err.message || 'Unknown error'}`);
+      setSnackbar({
+        open: true,
+        message: 'Delete operation failed',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderBreadcrumbs = () => {
     const normalizedPath = currentPath.replace(/\\/g, '/');
     const paths = normalizedPath ? normalizedPath.split('/') : [];
@@ -332,25 +458,11 @@ const FileBrowser = () => {
                     secondary={file.isDirectory ? `${file.modifiedAt ? new Date(file.modifiedAt).toLocaleString() : ''}` : `${fileService.formatFileSize(file.size)} • ${file.modifiedAt ? new Date(file.modifiedAt).toLocaleString() : ''}`}
                   />
                   <Box>
-                    {!file.isDirectory && canDownload && (
-                      <Tooltip title="Download">
-                        <IconButton onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownloadFile(file);
-                        }}>
-                          <DownloadIcon />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                    {/* Replace direct action buttons with a 3-dot menu */}
                     {canEdit && (
-                      <Tooltip title="Delete">
-                        <IconButton onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteFile(file);
-                        }}>
-                          <DeleteIcon />
-                        </IconButton>
-                      </Tooltip>
+                      <IconButton onClick={(e) => handleActionMenuOpen(file, e)}>
+                        <MoreIcon />
+                      </IconButton>
                     )}
                   </Box>
                 </ListItem>
@@ -363,6 +475,96 @@ const FileBrowser = () => {
           </List>
         )}
       </Paper>
+      
+      {/* Action Menu (3-dot menu) */}
+      <Menu
+        anchorEl={actionMenuAnchor}
+        open={Boolean(actionMenuAnchor)}
+        onClose={handleActionMenuClose}
+      >
+        {/* Rename option for all items */}
+        <MenuItem onClick={() => handleRenameClick(selectedItem)}>
+          <ListItemIcon>
+            <EditIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Rename</ListItemText>
+        </MenuItem>
+        
+        {/* Download option for files */}
+        {selectedItem && !selectedItem.isDirectory && canDownload && (
+          <MenuItem onClick={() => {
+            handleActionMenuClose();
+            handleDownloadFile(selectedItem);
+          }}>
+            <ListItemIcon>
+              <DownloadIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Download</ListItemText>
+          </MenuItem>
+        )}
+        
+        {/* Download as ZIP option for folders */}
+        {selectedItem && selectedItem.isDirectory && canDownload && (
+          <MenuItem onClick={() => handleDownloadFolder(selectedItem)}>
+            <ListItemIcon>
+              <ArchiveIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Download as ZIP</ListItemText>
+          </MenuItem>
+        )}
+        
+        {/* Delete option for all items */}
+        {canEdit && (
+          <MenuItem onClick={() => handleDeleteClick(selectedItem)}>
+            <ListItemIcon>
+              <DeleteIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText sx={{ color: 'error.main' }}>Delete</ListItemText>
+          </MenuItem>
+        )}
+      </Menu>
+      
+      {/* Rename Dialog */}
+      <Dialog open={renameDialogOpen} onClose={handleRenameClose}>
+        <DialogTitle>Rename {itemToRename?.isDirectory ? 'Folder' : 'File'}</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="New Name"
+            type="text"
+            fullWidth
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleRenameClose}>Cancel</Button>
+          <Button onClick={handleRename} color="primary">Rename</Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onClose={handleDeleteConfirmClose}>
+        <DialogTitle>Confirm Deletion</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete {itemToDelete?.isDirectory ? 'folder' : 'file'} 
+            <strong> {itemToDelete?.name}</strong>?
+          </Typography>
+          {itemToDelete?.isDirectory && (
+            <Typography color="error" sx={{ mt: 2 }}>
+              Warning: All contents of this folder will be permanently deleted!
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteConfirmClose}>Cancel</Button>
+          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
       
       <Menu
         open={contextMenu !== null}
@@ -380,14 +582,27 @@ const FileBrowser = () => {
         }}>
           Open
         </MenuItem>
-        {canDownload && (
+        <MenuItem onClick={() => {
+          handleCloseContextMenu();
+          handleRenameClick(contextMenu.file);
+        }}>
+          Rename
+        </MenuItem>
+        {contextMenu?.file?.isDirectory ? (
+          <MenuItem onClick={() => {
+            handleCloseContextMenu();
+            handleDownloadFolder(contextMenu.file);
+          }}>
+            Download as ZIP
+          </MenuItem>
+        ) : canDownload ? (
           <MenuItem onClick={() => {
             handleCloseContextMenu();
             handleDownloadFile(contextMenu.file);
           }}>
             Download
           </MenuItem>
-        )}
+        ) : null}
         {canEdit && (
           <MenuItem onClick={() => {
             handleCloseContextMenu();
@@ -423,6 +638,24 @@ const FileBrowser = () => {
         <DialogActions>
           <Button onClick={handleNewFolderClose}>Cancel</Button>
           <Button onClick={handleCreateFolder}>Create</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={renameDialogOpen} onClose={handleRenameClose}>
+        <DialogTitle>Rename {itemToRename?.isDirectory ? 'Folder' : 'File'}</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="New Name"
+            type="text"
+            fullWidth
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleRenameClose}>Cancel</Button>
+          <Button onClick={handleRename}>Rename</Button>
         </DialogActions>
       </Dialog>
       <Snackbar
