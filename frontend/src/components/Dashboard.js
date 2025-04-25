@@ -3,7 +3,7 @@ import {
   AppBar, Box, Toolbar, Typography, IconButton, Drawer, 
   List, ListItem, ListItemIcon, ListItemText, Divider, 
   Avatar, Menu, MenuItem, useMediaQuery, useTheme,
-  Paper, Tooltip, Fade, Badge, Chip
+  Paper, Tooltip, Fade, Chip
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -12,8 +12,7 @@ import {
   Settings as SettingsIcon,
   ExitToApp as LogoutIcon,
   Brightness4 as DarkModeIcon,
-  Brightness7 as LightModeIcon,
-  Dashboard as DashboardIcon
+  Brightness7 as LightModeIcon
 } from '@mui/icons-material';
 import FileBrowser from './FileBrowser';
 import UserManagement from './UserManagement';

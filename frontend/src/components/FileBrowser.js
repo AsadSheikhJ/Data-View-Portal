@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, List, ListItem, ListItemIcon, ListItemText,
   IconButton, Button, Divider, TextField, Dialog, DialogTitle,
   DialogContent, DialogActions, Menu, MenuItem, CircularProgress,
-  Breadcrumbs, Link, Tooltip, Snackbar, Alert, FormControl, InputLabel, Select
+  Breadcrumbs, Link, Tooltip, Snackbar, Alert
 } from '@mui/material';
 import {
   Folder as FolderIcon,
@@ -29,7 +29,6 @@ const FileBrowser = () => {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [selectedFile, setSelectedFile] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [fileToUpload, setFileToUpload] = useState(null);
   const [snackbar, setSnackbar] = useState({

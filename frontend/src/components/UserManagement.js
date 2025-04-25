@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -33,7 +33,6 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon
 } from '@mui/icons-material';
-import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 
 // Define API URL
@@ -64,17 +63,11 @@ const UserManagement = () => {
 
   const { user: currentLoggedUser, token } = useAuth();
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       // Get token from localStorage if not available in context
       const authToken = token || localStorage.getItem('token');
-      
-      // console.log('Fetching users from:', `${API_URL}/api/users`);
       
       if (!authToken) {
         throw new Error('Authentication token not available');
@@ -87,9 +80,6 @@ const UserManagement = () => {
           'Accept': 'application/json'
         }
       });
-      
-      // Log full response for debugging
-      // console.log('Response status:', response.status);
       
       // Check if response is ok
       if (!response.ok) {
@@ -127,7 +117,11 @@ const UserManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const handleOpenDialog = (mode, user = null) => {
     setDialogMode(mode);
