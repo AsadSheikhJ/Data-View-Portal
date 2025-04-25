@@ -34,9 +34,21 @@ import {
   Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiConfig } from '../services/apiConfig';
+
+// Get the API URL from our centralized configuration
+const getAPIUrl = () => {
+  // First check for runtime configuration (from window.runtimeConfig)
+  if (window.runtimeConfig && window.runtimeConfig.API_URL) {
+    return window.runtimeConfig.API_URL;
+  }
+  
+  // Then fall back to our centralized API config
+  return getApiConfig().baseUrl;
+};
 
 // Define API URL
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_URL = getAPIUrl();
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);

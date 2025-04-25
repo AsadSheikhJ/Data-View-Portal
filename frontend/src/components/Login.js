@@ -12,7 +12,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, error: authError } = useAuth();
   const navigate = useNavigate();
   
   // Force navigation after successful login
@@ -22,10 +22,33 @@ const Login = () => {
     }
   }, [isAuthenticated, navigate]);
   
+  // Use auth context error if available
+  useEffect(() => {
+    if (authError) {
+      setError(authError);
+      setLoading(false); // Ensure loading is turned off when error occurs
+    }
+  }, [authError]);
+  
   const handleSubmit = async (e) => {
+    // Prevent default form submission to avoid page refresh
     e.preventDefault();
-    setLoading(true);
+    
+    // Clear previous errors
     setError('');
+    
+    // Basic validation
+    if (!email.trim()) {
+      setError('Email is required');
+      return;
+    }
+    
+    if (!password) {
+      setError('Password is required');
+      return;
+    }
+    
+    setLoading(true);
     
     try {
       console.log('Sending login request with:', { email, password: '***' });
@@ -34,13 +57,14 @@ const Login = () => {
       if (success) {
         console.log('Login successful');
         navigate('/dashboard', { replace: true });
-      } else {
+      } else if (!error) {
+        // Only set generic error if no specific error was set in auth context
         setError('Login failed. Please check your credentials.');
+        setLoading(false);
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.message || 'An error occurred during login');
-    } finally {
+      setError(err.message || 'An unexpected error occurred during login');
       setLoading(false);
     }
   };
@@ -75,12 +99,22 @@ const Login = () => {
           </Typography>
           
           {error && (
-            <Alert severity="error" sx={{ width: '100%', mt: 2 }}>
+            <Alert 
+              severity="error" 
+              sx={{ width: '100%', mt: 2 }}
+              variant="filled"
+              onClose={() => setError('')}
+            >
               {error}
             </Alert>
           )}
           
-          <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1, width: '100%' }}>
+          <Box 
+            component="form" 
+            onSubmit={handleSubmit} 
+            noValidate 
+            sx={{ mt: 1, width: '100%' }}
+          >
             <TextField
               margin="normal"
               required
@@ -93,6 +127,9 @@ const Login = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
+              error={!!error && !email.trim()}
+              // Clear error when typing
+              onFocus={() => error && setError('')}
             />
             <TextField
               margin="normal"
@@ -106,6 +143,9 @@ const Login = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
+              error={!!error && !password}
+              // Clear error when typing
+              onFocus={() => error && setError('')}
             />
             <Button
               type="submit"
@@ -118,7 +158,7 @@ const Login = () => {
             </Button>
             
             <Typography variant="body2" sx={{ mt: 2, textAlign: 'center' }}>
-              For demo: admin@example.com / 123456
+              For demo: admin@example.com / adminPassword123
             </Typography>
           </Box>
         </Paper>

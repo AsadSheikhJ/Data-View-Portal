@@ -1,10 +1,20 @@
 import axios from 'axios';
+import { getApiConfig } from './apiConfig';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// Get the API URL from our centralized configuration
+const getAPIUrl = () => {
+  // First check for runtime configuration (from window.runtimeConfig)
+  if (window.runtimeConfig && window.runtimeConfig.API_URL) {
+    return window.runtimeConfig.API_URL;
+  }
+  
+  // Then fall back to our centralized API config
+  return getApiConfig().baseUrl;
+};
 
-// Create axios instance with default config
+// Create axios instance with dynamic config
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: getAPIUrl(),
   headers: {
     'Content-Type': 'application/json',
   }
@@ -17,6 +27,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Always ensure URLs start with /api
+    if (!config.url.startsWith('/api/')) {
+      config.url = `/api${config.url.startsWith('/') ? '' : '/'}${config.url}`;
+    }
+    
     return config;
   },
   (error) => Promise.reject(error)
@@ -34,40 +50,21 @@ const formatFileSize = (bytes) => {
 };
 
 // Debug API URL
-console.log('API URL configured as:', API_URL);
+console.log('API URL configured as:', getAPIUrl());
+
+// Listen for API config changes
+window.addEventListener('apiConfigChanged', () => {
+  console.log('API configuration changed, updating fileService to use:', getAPIUrl());
+  api.defaults.baseURL = getAPIUrl();
+});
 
 // Get directory configuration - with debug logging
 const getDirectoryConfig = async () => {
   try {
+    // Use the axios instance which has the current baseURL
+    const response = await api.get('/api/files/config');
     
-    // Use direct URL with full path
-    const fullUrl = `${API_URL}/api/files/config`;
-    // console.log(`Making direct request to: ${fullUrl}`);
-    
-    const response = await fetch(fullUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json'
-      }
-    });
-    
-    // Log full response details for debugging
-    // console.log('Response status:', response.status);
-    
-    const responseText = await response.text();
-    // console.log('Raw response:', responseText);
-    
-    // Try to parse as JSON if possible
-    let data;
-    try {
-      data = JSON.parse(responseText);
-      // console.log('Parsed response data:', data);
-    } catch (parseError) {
-      console.error('Failed to parse response as JSON:', parseError);
-      throw new Error(`Invalid JSON response: ${responseText}`);
-    }
-    
-    return data;
+    return response.data;
   } catch (error) {
     console.error('Error fetching directory config:', error);
     // Return default values
@@ -84,38 +81,9 @@ const updateDirectoryConfig = async (directoryPath) => {
   try {
     console.log('Updating directory configuration to:', directoryPath);
     
-    // Use direct URL with full path
-    const fullUrl = `${API_URL}/api/files/config`;
-    console.log(`Sending POST request to: ${fullUrl}`);
+    const response = await api.post('/api/files/config', { directoryPath });
     
-    const response = await fetch(fullUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({ directoryPath })
-    });
-    
-    // Log response details
-    console.log('Response status:', response.status);
-    
-    const responseText = await response.text();
-    console.log('Raw response:', responseText);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error ${response.status}: ${responseText}`);
-    }
-    
-    // Parse response as JSON
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      throw new Error(`Invalid JSON response: ${responseText}`);
-    }
-    
-    return data;
+    return response.data;
   } catch (error) {
     console.error('Error updating directory config:', error);
     throw error;

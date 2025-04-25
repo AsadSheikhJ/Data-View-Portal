@@ -1,12 +1,28 @@
 import axios from 'axios';
+import { getApiConfig } from '../services/apiConfig';
 
+// Get API URL from different sources with priority
+const getAPIUrl = () => {
+  // First priority: Runtime configuration (set by the server at serve time)
+  if (window.runtimeConfig && window.runtimeConfig.API_URL) {
+    return window.runtimeConfig.API_URL;
+  }
+  
+  // Second priority: API config from services
+  return getApiConfig().baseUrl;
+};
+
+// Create an axios instance with dynamic configuration
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000',
+  baseURL: getAPIUrl(),
   headers: {
     'Content-Type': 'application/json'
   },
   withCredentials: true
 });
+
+// Log the configured API URL
+console.log('API configured with base URL:', getAPIUrl());
 
 // Add request interceptor
 API.interceptors.request.use(config => {
@@ -41,5 +57,13 @@ API.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Listen for API config changes
+window.addEventListener('apiConfigChanged', (event) => {
+  if (event.detail && event.detail.baseUrl) {
+    console.log('Updating API baseURL due to config change:', event.detail.baseUrl);
+    API.defaults.baseURL = event.detail.baseUrl;
+  }
+});
 
 export default API;

@@ -1,7 +1,20 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
+import { getApiConfig } from '../services/apiConfig';
+
+// Get the API URL from our centralized configuration
+const getAPIUrl = () => {
+  // First check for runtime configuration (from window.runtimeConfig)
+  if (window.runtimeConfig && window.runtimeConfig.API_URL) {
+    return window.runtimeConfig.API_URL;
+  }
+  
+  // Then fall back to our centralized API config
+  return getApiConfig().baseUrl;
+};
+
 const AuthContext = createContext();
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_URL = getAPIUrl();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -106,23 +119,49 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     
     try {
+      // Use more modern fetch with proper error handling to avoid redirects
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
+        signal: controller.signal
+      }).catch(networkError => {
+        console.error('Network error during login:', networkError);
+        
+        // Handle different network errors appropriately
+        if (networkError.name === 'AbortError') {
+          throw new Error('Login request timed out. The server might be down or overloaded.');
+        }
+        
+        throw new Error('Unable to connect to the server. Please check your internet connection and try again.');
       });
       
+      // Clear the timeout since the request completed
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Login failed' }));
+        // Try to get detailed error from response
+        const errorData = await response.json().catch(() => ({ 
+          message: response.status === 401 
+            ? 'Invalid email or password' 
+            : `Server error (${response.status})` 
+        }));
+        
         throw new Error(errorData.message || 'Login failed');
       }
       
-      const data = await response.json();
+      const data = await response.json().catch(error => {
+        console.error('Error parsing JSON from login response:', error);
+        throw new Error('Invalid response from server');
+      });
       
       if (!data.token) {
-        throw new Error('No token received');
+        throw new Error('Authentication failed: No token received');
       }
       
       localStorage.setItem('token', data.token);

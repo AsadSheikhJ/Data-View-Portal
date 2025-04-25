@@ -1,15 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs').promises;
+const fs = require('fs');  // Use synchronous fs for checking build folder
 const http = require('http');
 const net = require('net');
 const fileRoutes = require('./routes/fileRoutes');
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
+const sharedConfig = require('../shared-config');
 
 const app = express();
-let PORT = process.env.PORT || 5000;
+let PORT = sharedConfig.PORT;
 
 // Function to check if a port is in use
 const isPortInUse = async (port) => {
@@ -183,15 +184,44 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Default route
-app.get('/', (req, res) => {
-  res.send('Data View Portal API');
-});
+// Check for React frontend build
+const frontendBuildPath = path.join(__dirname, '../frontend/build');
+let frontendAvailable = false;
 
-// 404 handler
+try {
+  if (fs.existsSync(frontendBuildPath) && fs.existsSync(path.join(frontendBuildPath, 'index.html'))) {
+    console.log('Frontend build found at:', frontendBuildPath);
+    frontendAvailable = true;
+    
+    // Serve static files from React build
+    app.use(express.static(frontendBuildPath));
+    
+    // Handle React routing - all non-API routes should return the React app
+    app.get('*', (req, res, next) => {
+      // Skip API routes and let them be handled by the API handlers
+      if (req.path.startsWith('/api/')) {
+        return next();
+      }
+      // Serve the React index.html for all other routes to support client-side routing
+      res.sendFile(path.join(frontendBuildPath, 'index.html'));
+    });
+  } else {
+    console.log('Frontend build not found. Only API endpoints will be available.');
+  }
+} catch (error) {
+  console.error('Error checking for frontend build:', error);
+}
+
+// 404 handler - Handle API routes that don't match any endpoint
 app.use((req, res) => {
-  console.log(`Route not found: ${req.method} ${req.url}`);
-  res.status(404).json({ message: `Cannot ${req.method} ${req.url}` });
+  if (req.path.startsWith('/api/')) {
+    console.log(`API route not found: ${req.method} ${req.url}`);
+    res.status(404).json({ message: `Cannot ${req.method} ${req.url}` });
+  } else if (!frontendAvailable) {
+    // Only reach here if frontend is not available and a non-API route is requested
+    res.status(404).send('Not found. Frontend is not built.');
+  }
+  // If frontend is available, the React app's routing will handle 404s
 });
 
 // Error handler
@@ -207,11 +237,20 @@ const startServer = async () => {
     const directoryConfig = require('./config/directoryConfig');
     const networkInfo = require('./utils/networkInfo');
     
+    console.log(`\n=== Data View Portal (Combined Frontend & Backend) ===`);
+    console.log(`Server running on port ${PORT}`);
+    
+    if (frontendAvailable) {
+      console.log(`Frontend is being served on the same port`);
+    } else {
+      console.log(`Frontend is NOT available - only API endpoints can be accessed`);
+      console.log(`To serve the frontend, build it first: cd ../frontend && npm run build`);
+    }
+    
     // Display network access information
     networkInfo.printAccessUrls(PORT);
     
     // Check if the directory exists
-    const fs = require('fs');
     try {
       const dirPath = directoryConfig.customDirectoryPath || directoryConfig.filesDir;
       const stats = fs.statSync(dirPath);
