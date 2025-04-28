@@ -354,20 +354,28 @@ const Settings = ({ darkMode, setDarkMode }) => {
               Current root directory: <code>{rootDirectoryPath || 'Using default directory'}</code>
             </Typography>
 
+            
+            <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
+              <Typography variant="body2">
+              <strong>DANGER:</strong> Change the root directory with extreme caution. Setting an incorrect path could cause system instability, data access issues, or application failure.
+              </Typography>
+            </Alert>
+
             <Divider sx={{ my: 2 }} />
             
             <Typography variant="h6" gutterBottom>
               Set Root Directory
             </Typography>
             
+            
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <TextField
                 label="Root Directory Path"
                 variant="outlined"
                 size="small"
-                value={rootDirectoryPath}
+                // value={rootDirectoryPath}
                 onChange={(e) => setRootDirectoryPath(e.target.value)}
-                placeholder="C:\path\to\directory"
+                placeholder="DriveLetter:\path\to\directory"
                 sx={{ mr: 2, flexGrow: 1 }}
               />
               <Button

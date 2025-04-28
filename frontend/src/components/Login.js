@@ -158,7 +158,6 @@ const Login = () => {
             </Button>
             
             <Typography variant="body2" sx={{ mt: 2, textAlign: 'center' }}>
-              For demo: admin@example.com / adminPassword123
             </Typography>
           </Box>
         </Paper>

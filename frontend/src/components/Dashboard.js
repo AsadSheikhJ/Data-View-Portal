@@ -299,18 +299,23 @@ const Dashboard = ({ colorMode }) => {
           
           <Divider sx={{ my: 1 }} />
           
-          <Box sx={{ p: 2 }}>
-            <Typography variant="body2" color="text.secondary" sx={{ 
-              fontWeight: 500,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              fontSize: '0.75rem'
-            }}>
-              Settings
-            </Typography>
-          </Box>
-          
+          {isAdmin && ( 
+              <Box sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ 
+                fontWeight: 500,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                fontSize: '0.75rem'
+              }}>
+                Settings
+              </Typography>
+            </Box>
+          )}
+
+
+          {/* Settings Section */}          
           <List dense>
+          {isAdmin && (
             <ListItem 
               component="div"
               onClick={() => {
@@ -328,7 +333,8 @@ const Dashboard = ({ colorMode }) => {
                 <SettingsIcon />
               </ListItemIcon>
               <ListItemText primary="Settings" />
-            </ListItem>
+              </ListItem>
+          )}
           </List>
         </Box>
       </Drawer>
