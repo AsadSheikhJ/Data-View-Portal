@@ -7,19 +7,19 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 
 // Authentication middleware
 module.exports = function(req, res, next) {
-  console.log('Auth middleware running for:', req.method, req.path);
+  // console.log('Auth middleware running for:', req.method, req.path);
   
   try {
     // Get token from header
     const authHeader = req.header('Authorization');
-    console.log('Auth header:', authHeader ? 'Present' : 'Missing');
+    // console.log('Auth header:', authHeader ? 'Present' : 'Missing');
     
     // Skip auth check for browser testing if needed
-    if (!authHeader && process.env.NODE_ENV === 'development') {
-      console.log('Development mode: Bypassing auth for testing');
-      req.user = { id: 1, email: 'admin@example.com', role: 'admin' };
-      return next();
-    }
+    // if (!authHeader && process.env.NODE_ENV === 'development') {
+    //   console.log('Development mode: Bypassing auth for testing');
+    //   req.user = { id: 1, email: 'admin@example.com', role: 'admin' };
+    //   return next();
+    // }
     
     if (!authHeader) {
       console.log('No Authorization header');
@@ -45,7 +45,7 @@ module.exports = function(req, res, next) {
       
       // Add user from payload to request
       req.user = decoded;
-      console.log('Token verified for user:', decoded.email);
+      // console.log('Token verified for user:', decoded.email);
       next();
     });
   } catch (err) {

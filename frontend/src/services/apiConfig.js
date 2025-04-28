@@ -23,6 +23,7 @@ const getBaseUrl = () => {
   
   // Default fallback - use current origin which works when frontend and backend are on same server
   return window.location.origin;
+  // return 'http://localhost:5000'; // Default for local development
 };
 
 // Initialize the API config with values from environment variables or localStorage

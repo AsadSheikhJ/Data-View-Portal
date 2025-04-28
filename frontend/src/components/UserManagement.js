@@ -39,9 +39,9 @@ import { getApiConfig } from '../services/apiConfig';
 // Get the API URL from our centralized configuration
 const getAPIUrl = () => {
   // First check for runtime configuration (from window.runtimeConfig)
-  if (window.runtimeConfig && window.runtimeConfig.API_URL) {
-    return window.runtimeConfig.API_URL;
-  }
+  // if (window.runtimeConfig && window.runtimeConfig.API_URL) {
+  //   return window.runtimeConfig.API_URL;
+  // }
   
   // Then fall back to our centralized API config
   return getApiConfig().baseUrl;

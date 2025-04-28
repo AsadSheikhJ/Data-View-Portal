@@ -6,7 +6,7 @@ const AuthService = {
   // Login user
   async login(email, password) {
     try {
-      const response = await API.post('/api/auth/login', { email, password });
+      const response = await API.post('/auth/login', { email, password });
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
@@ -20,7 +20,7 @@ const AuthService = {
   // Register user (admin only)
   async register(userData) {
     try {
-      const response = await API.post('/api/auth/register', userData);
+      const response = await API.post('/auth/register', userData);
       return response.data;
     } catch (error) {
       throw error.response ? error.response.data : { message: 'Server error' };
@@ -70,7 +70,7 @@ const AuthService = {
   // Get all users (admin only)
   async getAllUsers() {
     try {
-      const response = await API.get('/api/auth/users');
+      const response = await API.get('/auth/users');
       return response.data;
     } catch (error) {
       throw error.response ? error.response.data : { message: 'Server error' };
@@ -80,7 +80,7 @@ const AuthService = {
   // Update user (admin or self)
   async updateUser(userId, userData) {
     try {
-      const response = await API.put(`/api/auth/users/${userId}`, userData);
+      const response = await API.put(`/auth/users/${userId}`, userData);
       
       // If current user was updated, update local storage
       const currentUser = this.getCurrentUser();
@@ -97,7 +97,7 @@ const AuthService = {
   // Delete user (admin only)
   async deleteUser(userId) {
     try {
-      const response = await API.delete(`/api/auth/users/${userId}`);
+      const response = await API.delete(`/auth/users/${userId}`);
       return response.data;
     } catch (error) {
       throw error.response ? error.response.data : { message: 'Server error' };

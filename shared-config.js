@@ -8,6 +8,5 @@ const PORT = process.env.PORT || 5000;
 
 // Export configuration for use in other files
 module.exports = {
-  PORT,
-  getPort: () => PORT
+  PORT
 };

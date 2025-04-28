@@ -9,6 +9,9 @@ const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const sharedConfig = require('../shared-config');
 
+// Import authentication middleware
+const authMiddleware = require('./middleware/auth');
+
 const app = express();
 let PORT = sharedConfig.PORT;
 
@@ -31,12 +34,13 @@ const isPortInUse = async (port) => {
       resolve(false);
     });
     
-    server.listen(port);
+    server.listen(port, '0.0.0.0');
   });
 };
 
 // Function to find an available port starting from the specified one
 const findAvailablePort = async (startPort) => {
+  console.log(`Checking for available port starting from ${startPort}...`);
   let port = startPort;
   while (await isPortInUse(port)) {
     console.log(`Port ${port} is in use, trying next port...`);
@@ -55,7 +59,14 @@ app.use(express.urlencoded({ extended: true }));
 
 // Add logging middleware for debugging 
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+  
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(
+      `${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms - ${res.get('Content-Length') || 0}`
+    );
+  });
   
   // Log request body for debugging if it's a POST/PUT
   if ((req.method === 'POST' || req.method === 'PUT') && req.body) {
@@ -71,9 +82,8 @@ app.use((req, res, next) => {
 });
 
 // Add direct endpoints for file configuration - place this BEFORE the router registration
-app.get('/api/files/config', (req, res) => {
+app.get('/api/files/config', authMiddleware, (req, res) => {
   try {
-    console.log('GET /api/files/config endpoint called directly');
     
     const path = require('path');
     const fs = require('fs');
@@ -115,7 +125,7 @@ app.get('/api/files/config', (req, res) => {
   }
 });
 
-app.post('/api/files/config', (req, res) => {
+app.post('/api/files/config', authMiddleware, (req, res) => {
   try {
     console.log('POST /api/files/config endpoint called directly');
     console.log('Request body:', req.body);
@@ -173,7 +183,7 @@ app.post('/api/files/config', (req, res) => {
 // API routes - must come AFTER the direct endpoints
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/files', fileRoutes);
+app.use('/api/files', authMiddleware, fileRoutes);
 
 // API status route
 app.get('/api/status', (req, res) => {
@@ -233,6 +243,7 @@ app.use((err, req, res, next) => {
 // Start server
 const startServer = async () => {
   PORT = await findAvailablePort(PORT);
+  console.log(`Using available port: ${PORT}`);
   const server = app.listen(PORT, '0.0.0.0', () => {
     const directoryConfig = require('./config/directoryConfig');
     const networkInfo = require('./utils/networkInfo');

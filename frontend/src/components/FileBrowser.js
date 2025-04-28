@@ -58,7 +58,7 @@ const FileBrowser = () => {
       
       // Ensure data is an array
       const filesArray = Array.isArray(data) ? data : [];
-      console.log(`Loaded ${filesArray.length} files/directories`);
+      // console.log(`Loaded ${filesArray.length} files/directories`);
       
       // Sort: directories first, then files
       const sortedFiles = filesArray.sort((a, b) => {
@@ -314,8 +314,10 @@ const FileBrowser = () => {
   // Handle delete confirmation open
   const handleDeleteClick = (file) => {
     handleActionMenuClose();
-    setItemToDelete(file);
-    setDeleteConfirmOpen(true);
+    setTimeout(() => {
+      setItemToDelete(file);
+      setDeleteConfirmOpen(true);
+    }, 0);
   };
 
   // Handle delete confirmation close
@@ -649,7 +651,10 @@ const FileBrowser = () => {
         }}
       >
         {/* Rename option for all items */}
-        <MenuItem onClick={() => handleRenameClick(selectedItem)} sx={{ borderRadius: 1 }}>
+        <MenuItem onClick={() => {
+          handleActionMenuClose();
+          setTimeout(() => handleRenameClick(selectedItem), 0);
+        }} sx={{ borderRadius: 1 }}>
           <ListItemIcon>
             <EditIcon fontSize="small" color="primary" />
           </ListItemIcon>
@@ -661,7 +666,7 @@ const FileBrowser = () => {
           <MenuItem 
             onClick={() => {
               handleActionMenuClose();
-              handleDownloadFile(selectedItem);
+              setTimeout(() => handleDownloadFile(selectedItem), 0);
             }}
             sx={{ borderRadius: 1 }}
           >
@@ -675,7 +680,10 @@ const FileBrowser = () => {
         {/* Download as ZIP option for folders */}
         {selectedItem && selectedItem.isDirectory && canDownload && (
           <MenuItem 
-            onClick={() => handleDownloadFolder(selectedItem)}
+            onClick={() => {
+              handleActionMenuClose();
+              setTimeout(() => handleDownloadFolder(selectedItem), 0);
+            }}
             sx={{ borderRadius: 1 }}
           >
             <ListItemIcon>
@@ -690,7 +698,10 @@ const FileBrowser = () => {
         {/* Delete option for all items */}
         {canEdit && (
           <MenuItem 
-            onClick={() => handleDeleteClick(selectedItem)}
+            onClick={() => {
+              handleActionMenuClose();
+              setTimeout(() => handleDeleteClick(selectedItem), 0);
+            }}
             sx={{ borderRadius: 1 }}
           >
             <ListItemIcon>
@@ -738,7 +749,7 @@ const FileBrowser = () => {
         <MenuItem 
           onClick={() => {
             handleCloseContextMenu();
-            handleRenameClick(contextMenu.file);
+            setTimeout(() => handleRenameClick(contextMenu.file), 0);
           }}
           sx={{ borderRadius: 1 }}
         >
@@ -752,7 +763,7 @@ const FileBrowser = () => {
           <MenuItem 
             onClick={() => {
               handleCloseContextMenu();
-              handleDownloadFolder(contextMenu.file);
+              setTimeout(() => handleDownloadFolder(contextMenu.file), 0);
             }}
             sx={{ borderRadius: 1 }}
           >
@@ -765,7 +776,7 @@ const FileBrowser = () => {
           <MenuItem 
             onClick={() => {
               handleCloseContextMenu();
-              handleDownloadFile(contextMenu.file);
+              setTimeout(() => handleDownloadFile(contextMenu.file), 0);
             }}
             sx={{ borderRadius: 1 }}
           >
@@ -782,7 +793,7 @@ const FileBrowser = () => {
           <MenuItem 
             onClick={() => {
               handleCloseContextMenu();
-              handleDeleteFile(contextMenu.file);
+              setTimeout(() => handleDeleteFile(contextMenu.file), 0);
             }}
             sx={{ borderRadius: 1 }}
           >

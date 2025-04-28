@@ -5,9 +5,9 @@ import { getApiConfig } from '../services/apiConfig';
 // Get the API URL from our centralized configuration
 const getAPIUrl = () => {
   // First check for runtime configuration (from window.runtimeConfig)
-  if (window.runtimeConfig && window.runtimeConfig.API_URL) {
-    return window.runtimeConfig.API_URL;
-  }
+  // if (window.runtimeConfig && window.runtimeConfig.API_URL) {
+  //   return window.runtimeConfig.API_URL;
+  // }
   
   // Then fall back to our centralized API config
   return getApiConfig().baseUrl;
@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }) => {
       }
       
       try {
-        // Try to extract user info from token to use if API fails
+        // Try to extract user info from token
         try {
           const tokenParts = storedToken.split('.');
           if (tokenParts.length === 3) {
@@ -46,24 +46,16 @@ export const AuthProvider = ({ children }) => {
             );
             const tokenData = JSON.parse(jsonPayload);
             
-            // Set basic user info from token
-            setUser({
-              id: tokenData.id,
-              name: tokenData.name,
-              email: tokenData.email,
-              role: tokenData.role,
-              // Default permissions if not in token
-              permissions: tokenData.permissions || {
-                view: true,
-                edit: tokenData.role === 'admin',
-                download: tokenData.role === 'admin'
-              }
-            });
+            // Check token expiration
+            if (tokenData.exp && tokenData.exp < Date.now() / 1000) {
+              throw new Error('Token expired');
+            }
           }
         } catch (e) {
-          console.warn('Could not parse token payload:', e);
+          console.warn('Token parsing error:', e);
+          throw new Error('Invalid token');
         }
-        
+
         // Try to verify with API
         try {
           // Fetch user data directly first - more reliable
@@ -99,12 +91,11 @@ export const AuthProvider = ({ children }) => {
         setToken(storedToken);
       } catch (err) {
         console.error('Auth verification error:', err);
-        
-        // Only clear token if it's truly invalid
-        if (err.message === 'Token verification failed') {
-          localStorage.removeItem('token');
-          setToken(null);
-          setUser(null);
+        localStorage.removeItem('token');
+        setToken(null);
+        setUser(null);
+        if (!window.location.pathname.includes('login')) {
+          window.location.href = '/login?session=expired';
         }
       } finally {
         setLoading(false);

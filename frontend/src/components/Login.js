@@ -20,8 +20,8 @@ const Login = () => {
     if (isAuthenticated) {
       navigate('/dashboard', { replace: true });
     }
-  }, [isAuthenticated, navigate]);
-  
+  }, [isAuthenticated, navigate]);  
+
   // Use auth context error if available
   useEffect(() => {
     if (authError) {
@@ -31,9 +31,7 @@ const Login = () => {
   }, [authError]);
   
   const handleSubmit = async (e) => {
-    // Prevent default form submission to avoid page refresh
     e.preventDefault();
-    
     // Clear previous errors
     setError('');
     
@@ -51,7 +49,7 @@ const Login = () => {
     setLoading(true);
     
     try {
-      console.log('Sending login request with:', { email, password: '***' });
+      // console.log('Sending login request with:', { email, password: '***' });
       const success = await login(email, password);
       
       if (success) {
@@ -64,7 +62,8 @@ const Login = () => {
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.message || 'An unexpected error occurred during login');
+      setError(err.message || 'An error occurred during login');
+    } finally {
       setLoading(false);
     }
   };
@@ -100,11 +99,11 @@ const Login = () => {
           
           {error && (
             <Alert 
-              severity="error" 
-              sx={{ width: '100%', mt: 2 }}
-              variant="filled"
-              onClose={() => setError('')}
-            >
+            severity="error" 
+            sx={{ width: '100%', mt: 2 }}
+            variant="filled"
+            onClose={() => setError('')}
+          >
               {error}
             </Alert>
           )}

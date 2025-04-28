@@ -4,15 +4,22 @@ import { getApiConfig } from '../services/apiConfig';
 // Get API URL from different sources with priority
 const getAPIUrl = () => {
   // First priority: Runtime configuration (set by the server at serve time)
-  if (window.runtimeConfig && window.runtimeConfig.API_URL) {
-    return window.runtimeConfig.API_URL;
-  }
+  // if (window.runtimeConfig && window.runtimeConfig.API_URL) {
+  //   return window.runtimeConfig.API_URL;
+  // }
   
   // Second priority: API config from services
   return getApiConfig().baseUrl;
 };
 
-// Create an axios instance with dynamic configuration
+// Create a variable to store the logout function
+let logoutFunction = null;
+
+// Function to set the logout handler from AuthContext
+export const setLogoutHandler = (logout) => {
+  logoutFunction = logout;
+};
+
 const API = axios.create({
   baseURL: getAPIUrl(),
   headers: {
@@ -49,9 +56,13 @@ API.interceptors.response.use(
   error => {
     console.error('API error:', error.config?.url, error.response?.status);
     if (error.response?.status === 401) {
-      // Only redirect if not on login page already
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      if (logoutFunction) {
+        logoutFunction();
+      }
       if (!window.location.pathname.includes('login')) {
-        window.location = '/login';
+        window.location.href = '/login?session=expired';
       }
     }
     return Promise.reject(error);

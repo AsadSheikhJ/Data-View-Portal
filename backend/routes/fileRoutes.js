@@ -7,6 +7,14 @@ const multer = require('multer');
 const archiver = require('archiver'); // Add this dependency for zip functionality
 const directoryConfig = require('../config/directoryConfig');
 
+// Import the auth middleware directly to ensure it's applied
+const authMiddleware = require('../middleware/auth');
+// Import the enhanced permissions middleware
+const { checkPermission, checkSpecificPermission } = require('../middleware/permissions');
+
+// Apply auth middleware to ALL routes in this router
+router.use(authMiddleware);
+
 // Debug the directory configuration
 console.log('Files directory path:', directoryConfig.filesDir);
 // console.log('Using custom path:', directoryConfig.isUsingCustomPath ? 'Yes' : 'No');
@@ -207,7 +215,7 @@ router.post('/directory', async (req, res) => {
 });
 
 // Upload file
-router.post('/upload', upload.single('file'), async (req, res) => {
+router.post('/upload', checkSpecificPermission('edit'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
@@ -231,7 +239,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 // Download file
-router.get('/download/:filePath(*)', async (req, res) => {
+router.get('/download/:filePath(*)', checkSpecificPermission('download'), async (req, res) => {
   try {
     const basePath = directoryConfig.customDirectoryPath || directoryConfig.filesDir;
     const filePath = path.join(basePath, req.params.filePath);
@@ -248,7 +256,7 @@ router.get('/download/:filePath(*)', async (req, res) => {
 });
 
 // Download a folder as zip
-router.get('/download-folder/:folderPath(*)', async (req, res) => {
+router.get('/download-folder/:folderPath(*)', checkSpecificPermission('download'), async (req, res) => {
   try {
     const folderPath = req.params.folderPath;
     const sourcePath = path.join(directoryConfig.filesDir, folderPath);
@@ -291,7 +299,7 @@ router.get('/download-folder/:folderPath(*)', async (req, res) => {
 });
 
 // Rename a file or folder
-router.put('/rename', async (req, res) => {
+router.put('/rename', checkSpecificPermission('edit'), async (req, res) => {
   try {
     const { oldPath, newName } = req.body;
     
@@ -336,7 +344,7 @@ router.put('/rename', async (req, res) => {
 });
 
 // Delete file/directory
-router.delete('/:filePath(*)', async (req, res) => {
+router.delete('/:filePath(*)', checkSpecificPermission('edit'), async (req, res) => {
   try {
     const basePath = directoryConfig.customDirectoryPath || directoryConfig.filesDir;
     const filePath = path.join(basePath, req.params.filePath);

@@ -316,7 +316,7 @@ const Settings = ({ darkMode, setDarkMode }) => {
         severity: 'success'
       });
     } catch (error) {
-      console.error('Error setting root directory:', error);
+      console.error('Error setting root directory:', error.message);
       setSnackbar({
         open: true,
         message: `Failed to set root directory: ${error.message}`,

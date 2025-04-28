@@ -28,7 +28,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Request logger for debugging
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url} - ${new Date().toISOString()}`);
+  console.log( `${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms - ${res.get('Content-Length') || 0}`);
+  
+ 
   next();
 });
 
@@ -158,7 +160,7 @@ app.post('/api/auth/login', async (req, res) => {
     jwt.sign(
       payload,
       JWT_SECRET,
-      { expiresIn: '24h' },
+      { expiresIn: '1h' },
       (err, token) => {
         if (err) throw err;
         
@@ -387,8 +389,8 @@ app.delete('/api/users/:id', auth, adminOnly, async (req, res) => {
   }
 });
 
-// File API routes
-app.use('/api/files', fileRoutes);
+// File API routes - Apply authentication middleware
+app.use('/api/files', auth, fileRoutes);
 
 // API status route
 app.get('/api/status', (req, res) => {

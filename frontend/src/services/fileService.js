@@ -4,9 +4,9 @@ import { getApiConfig } from './apiConfig';
 // Get the API URL from our centralized configuration
 const getAPIUrl = () => {
   // First check for runtime configuration (from window.runtimeConfig)
-  if (window.runtimeConfig && window.runtimeConfig.API_URL) {
-    return window.runtimeConfig.API_URL;
-  }
+  // if (window.runtimeConfig && window.runtimeConfig.API_URL) {
+  //   return window.runtimeConfig.API_URL;
+  // }
   
   // Then fall back to our centralized API config
   return getApiConfig().baseUrl;
@@ -169,6 +169,22 @@ const downloadFile = async (filePath) => {
       responseType: 'blob'
     });
     
+    // Check if the response is an error message in JSON format
+    // Only attempt to parse as JSON if it's actually JSON content type
+    const contentType = response.headers['content-type'];
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const text = await response.data.text();
+        const errorData = JSON.parse(text);
+        if (errorData.error || errorData.message) {
+          throw new Error(errorData.message || errorData.error || 'Permission denied');
+        }
+      } catch (parseError) {
+        // If we can't parse the JSON, just continue with download
+        console.log("Not a JSON error response, continuing with download");
+      }
+    }
+    
     // Create a URL for the blob
     const url = window.URL.createObjectURL(new Blob([response.data]));
     
@@ -183,10 +199,16 @@ const downloadFile = async (filePath) => {
     // Clean up
     window.URL.revokeObjectURL(url);
     
-    return true;
+    return { success: true };
   } catch (error) {
     console.error('Error downloading file:', error);
-    throw error;
+    // Return a structured error object instead of throwing
+    return {
+      success: false,
+      error: error.response?.status === 403 
+        ? "You don't have permission to download files"
+        : error.message || 'Failed to download file'
+    };
   }
 };
 
@@ -198,6 +220,14 @@ const downloadFolder = async (folderPath) => {
     const response = await api.get(`/api/files/download-folder/${encodeURIComponent(folderPath)}`, {
       responseType: 'blob'
     });
+    
+    // Check if the response is an error message in JSON format
+    const contentType = response.headers['content-type'];
+    if (contentType && contentType.includes('application/json')) {
+      const text = await response.data.text();
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.message || 'Permission denied');
+    }
     
     // Create a URL for the blob
     const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -214,10 +244,16 @@ const downloadFolder = async (folderPath) => {
     // Clean up
     window.URL.revokeObjectURL(url);
     
-    return true;
+    return { success: true };
   } catch (error) {
     console.error('Error downloading folder:', error);
-    throw error;
+    // Return a structured error object instead of throwing
+    return {
+      success: false,
+      error: error.response?.status === 403 
+        ? "You don't have permission to download folders"
+        : error.message || 'Failed to download folder'
+    };
   }
 };
 
