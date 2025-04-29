@@ -182,7 +182,7 @@ app.post('/api/files/config', authMiddleware, (req, res) => {
 
 // API routes - must come AFTER the direct endpoints
 app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
+app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/files', authMiddleware, fileRoutes);
 
 // API status route

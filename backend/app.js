@@ -49,23 +49,9 @@ async function getUsers() {
   try {
     const data = await fs.readFile(usersFilePath, 'utf8');
     return JSON.parse(data);
-  } catch (error) {
-    // If file doesn't exist or is invalid JSON, return empty array
-    if (error.code === 'ENOENT' || error instanceof SyntaxError) {
-      // Initialize with default admin if no users exist
-      const defaultUsers = [
-        {
-          id: 1,
-          name: 'Admin User',
-          email: 'admin@example.com',
-          password: await bcrypt.hash('admin123', 10),
-          role: 'admin',
-          permissions: { view: true, edit: true, download: true }
-        }
-      ];
-      await saveUsers(defaultUsers);
-      return defaultUsers;
-    }
+  } catch (error)
+  {
+    console.error('Error reading users file:', error.message);
     throw error;
   }
 }

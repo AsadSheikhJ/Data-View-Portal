@@ -6,6 +6,7 @@ const fsSync = require('fs');
 const multer = require('multer');
 const archiver = require('archiver'); // Add this dependency for zip functionality
 const directoryConfig = require('../config/directoryConfig');
+const { handleFileUploadError } = require('../middleware/errorHandlers'); // Add this import
 
 // Import the auth middleware directly to ensure it's applied
 const authMiddleware = require('../middleware/auth');
@@ -215,28 +216,17 @@ router.post('/directory', async (req, res) => {
 });
 
 // Upload file
-router.post('/upload', checkSpecificPermission('edit'), upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
-    }
-    
-    const filePath = req.file.path;
-    // Calculate relative path based on whether we're using custom directory
-    const basePath = directoryConfig.customDirectoryPath || directoryConfig.filesDir;
-    const relativePath = path.relative(basePath, filePath).replace(/\\/g, '/');
-    
-    res.json({
-      name: req.file.originalname,
-      path: relativePath,
-      size: req.file.size,
-      message: 'File uploaded successfully'
+router.post('/upload', 
+  upload.single('file'), 
+  handleFileUploadError, // Now properly imported
+  (req, res) => {
+    // Handle successful upload
+    res.json({ 
+      message: 'File uploaded successfully',
+      file: req.file 
     });
-  } catch (error) {
-    console.error('Error uploading file:', error);
-    res.status(500).json({ message: 'Error uploading file' });
   }
-});
+);
 
 // Download file
 router.get('/download/:filePath(*)', checkSpecificPermission('download'), async (req, res) => {
