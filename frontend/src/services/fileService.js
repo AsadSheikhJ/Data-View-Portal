@@ -166,27 +166,41 @@ const downloadFile = async (filePath) => {
     console.log(`Downloading file: ${filePath}`);
     
     const response = await api.get(`/api/files/download/${encodeURIComponent(filePath)}`, {
-      responseType: 'blob'
-    });
-    
-    // Check if the response is an error message in JSON format
-    // Only attempt to parse as JSON if it's actually JSON content type
-    const contentType = response.headers['content-type'];
-    if (contentType && contentType.includes('application/json')) {
-      try {
-        const text = await response.data.text();
-        const errorData = JSON.parse(text);
-        if (errorData.error || errorData.message) {
-          throw new Error(errorData.message || errorData.error || 'Permission denied');
-        }
-      } catch (parseError) {
-        // If we can't parse the JSON, just continue with download
-        console.log("Not a JSON error response, continuing with download");
+      responseType: 'blob',
+      validateStatus: function (status) {
+        return status < 500; // Accept all statuses below 500, so we can handle errors with JSON bodies
       }
+    });
+
+    // Check if the response indicates an error (e.g., 403 Forbidden, 404 Not Found)
+    if (response.status >= 400) {
+      const contentType = response.headers['content-type'];
+      let errorMessage = 'Failed to download file.';
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          // response.data will be a Blob, so we need to read it as text
+          const errorText = await response.data.text();
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || `Error ${response.status}`;
+        } catch (e) {
+          console.error('Could not parse JSON error from server:', e);
+          errorMessage = `Server error (${response.status}), unable to parse error details.`;
+        }
+      } else {
+         // If not JSON, use a generic message or try to read response as text if possible
+        try {
+            const errorText = await response.data.text();
+            errorMessage = errorText || `Server error (${response.status})`;
+        } catch (e) {
+            errorMessage = `Server error (${response.status})`;
+        }
+      }
+      throw new Error(errorMessage);
     }
     
-    // Create a URL for the blob
-    const url = window.URL.createObjectURL(new Blob([response.data]));
+    // If response.status is 2xx, proceed with download
+    // Create a URL for the blob (response.data is the blob)
+    const url = window.URL.createObjectURL(response.data);
     
     // Create a link and trigger download
     const link = document.createElement('a');
@@ -198,17 +212,12 @@ const downloadFile = async (filePath) => {
     
     // Clean up
     window.URL.revokeObjectURL(url);
-    
-    return { success: true };
-  } catch (error) {
+
+  } catch (error) { // This catch block now handles errors thrown above or network errors
     console.error('Error downloading file:', error);
-    // Return a structured error object instead of throwing
-    return {
-      success: false,
-      error: error.response?.status === 403 
-        ? "You don't have permission to download files"
-        : error.message || 'Failed to download file'
-    };
+    // No need for error.response checks here as we handled HTTP errors above
+    // The error here is already an Error object with a message
+    throw error; // Re-throw the error with the specific message
   }
 };
 
@@ -247,13 +256,10 @@ const downloadFolder = async (folderPath) => {
     return { success: true };
   } catch (error) {
     console.error('Error downloading folder:', error);
-    // Return a structured error object instead of throwing
-    return {
-      success: false,
-      error: error.response?.status === 403 
-        ? "You don't have permission to download folders"
-        : error.message || 'Failed to download folder'
-    };
+    if (error.response?.status === 403) {
+      throw new Error("You don't have permission to download folders");
+    }
+    throw new Error(error.response?.data?.message || error.message || 'Failed to download folder');
   }
 };
 

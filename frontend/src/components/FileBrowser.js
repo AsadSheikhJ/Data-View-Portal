@@ -85,8 +85,14 @@ const FileBrowser = () => {
   const handleFileClick = (file) => {
     if (file.isDirectory) {
       setCurrentPath(file.path);
+    } else if (canDownload) {
+      handleDownloadFile(file);
     } else {
-      fileService.downloadFile(file.path);
+      setSnackbar({
+        open: true,
+        message: "You don't have permission to download files",
+        severity: 'error'
+      });
     }
   };
 
@@ -175,15 +181,56 @@ const FileBrowser = () => {
   };
 
   const handleDownloadFile = async (file) => {
+    if (!canDownload) {
+      setSnackbar({
+        open: true,
+        message: "You don't have permission to download files",
+        severity: 'error'
+      });
+      return;
+    }
+
     try {
       await fileService.downloadFile(file.path);
     } catch (err) {
-      setError('Failed to download file: ' + (err.message || 'Unknown error'));
       setSnackbar({
         open: true,
-        message: 'File download failed',
+        message: err.message || 'Failed to download file',
         severity: 'error'
       });
+    }
+  };
+
+  const handleDownloadFolder = async (folder, event) => {
+    if (event) {
+      event.stopPropagation();
+    }
+
+    if (!canDownload) {
+      setSnackbar({
+        open: true,
+        message: "You don't have permission to download folders",
+        severity: 'error'
+      });
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      await fileService.downloadFolder(folder.path);
+      setSnackbar({
+        open: true,
+        message: 'Folder download started',
+        severity: 'success'
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err.message || 'Failed to download folder',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -267,31 +314,6 @@ const FileBrowser = () => {
       setSnackbar({
         open: true,
         message: 'Failed to rename item',
-        severity: 'error'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDownloadFolder = async (folder, event) => {
-    if (event) {
-      event.stopPropagation();
-    }
-    
-    try {
-      setLoading(true);
-      await fileService.downloadFolder(folder.path);
-      setSnackbar({
-        open: true,
-        message: 'Folder download started',
-        severity: 'success'
-      });
-    } catch (err) {
-      setError(`Failed to download folder: ${err.message || 'Unknown error'}`);
-      setSnackbar({
-        open: true,
-        message: 'Failed to download folder',
         severity: 'error'
       });
     } finally {
@@ -586,7 +608,7 @@ const FileBrowser = () => {
                     }
                   />
                   <Box>
-                    {canEdit && (
+                    {(canEdit || canDownload) && (
                       <IconButton 
                         onClick={(e) => handleActionMenuOpen(file, e)}
                         size="small"
@@ -651,15 +673,17 @@ const FileBrowser = () => {
         }}
       >
         {/* Rename option for all items */}
-        <MenuItem onClick={() => {
-          handleActionMenuClose();
-          setTimeout(() => handleRenameClick(selectedItem), 0);
-        }} sx={{ borderRadius: 1 }}>
-          <ListItemIcon>
-            <EditIcon fontSize="small" color="primary" />
-          </ListItemIcon>
-          <ListItemText primary="Rename" />
-        </MenuItem>
+        {canEdit && (
+          <MenuItem onClick={() => {
+            handleActionMenuClose();
+            setTimeout(() => handleRenameClick(selectedItem), 0);
+          }} sx={{ borderRadius: 1 }}>
+            <ListItemIcon>
+              <EditIcon fontSize="small" color="primary" />
+            </ListItemIcon>
+            <ListItemText primary="Rename" />
+          </MenuItem>
+        )}
         
         {/* Download option for files */}
         {selectedItem && !selectedItem.isDirectory && canDownload && (
