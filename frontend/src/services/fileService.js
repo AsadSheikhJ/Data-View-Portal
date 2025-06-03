@@ -141,7 +141,7 @@ const uploadFile = async (file, directory = '') => {
     const formData = new FormData();
     formData.append('file', file);
     
-    console.log(`Uploading file to directory: ${directory}`);
+    // console.log(`Uploading file to directory: ${directory}`);
     
     const response = await api.post(
       `/api/files/upload?directory=${encodeURIComponent(directory)}`,
@@ -155,7 +155,40 @@ const uploadFile = async (file, directory = '') => {
     
     return response.data;
   } catch (error) {
-    console.error('Error uploading file:', error);
+    // console.error('Error uploading file:', error);
+    throw error;
+  }
+};
+
+// New function for multiple files with progress
+const uploadMultipleFilesWithProgress = async (files, directory = '', onUploadProgress) => {
+  try {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('files', file); // Key is 'files', matching backend upload.array('files', ...)
+    });
+
+    // console.log(`Uploading multiple files to directory: ${directory}`);
+    
+    const response = await api.post(
+      `/api/files/upload?directory=${encodeURIComponent(directory)}`, // Ensure this endpoint is correct for multiple files
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: progressEvent => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          if (onUploadProgress) {
+            onUploadProgress(percentCompleted);
+          }
+        }
+      }
+    );
+    
+    return response.data;
+  } catch (error) {
+    // console.error('Error uploading multiple files:', error);
     throw error;
   }
 };
@@ -314,6 +347,7 @@ const createDirectory = async (parentPath, name) => {
 const fileService = {
   listFiles,
   uploadFile,
+  uploadMultipleFilesWithProgress,
   downloadFile,
   downloadFolder,  // New function
   deleteItem,

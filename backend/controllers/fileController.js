@@ -46,11 +46,14 @@ const storage = multer.diskStorage({
 // Initialize multer upload
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100 MB file size limit
+  limits: { 
+    fileSize: 300 * 1024 * 1024, // 300 MB file size limit
+    // The number of files is controlled by upload.array() below
+  }
 });
 
 // Export multer middleware
-exports.uploadFiles = upload.array('files', 10); // Accept up to 10 files
+exports.uploadFiles = upload.array('files', 50);
 
 // List files and directories
 exports.listFiles = (req, res) => {

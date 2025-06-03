@@ -92,11 +92,11 @@ const storage = multer.diskStorage({
         targetDir = directoryConfig.filesDir;
       }
       
-      console.log(`Upload destination directory: ${targetDir}`);
+      // console.log(`Upload destination directory: ${targetDir}`);
       await ensureDirectoryExists(targetDir);
       cb(null, targetDir);
     } catch (error) {
-      console.error('Multer destination error:', error);
+      // console.error('Multer destination error:', error);
       cb(error);
     }
   },
@@ -107,7 +107,10 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  limits: { 
+    fileSize: 300 * 1024 * 1024, // Updated to 300MB
+    // files: 50 // This is controlled by upload.array() below, so not strictly needed here but good for clarity
+  }
 });
 
 // List files in a directory
@@ -215,15 +218,25 @@ router.post('/directory', async (req, res) => {
   }
 });
 
-// Upload file
-router.post('/upload', 
-  upload.single('file'), 
-  handleFileUploadError, // Now properly imported
-  (req, res) => {
-    // Handle successful upload
-    res.json({ 
-      message: 'File uploaded successfully',
-      file: req.file 
+// Upload files - uses the local 'upload' multer instance
+router.post(
+  '/upload',
+  checkSpecificPermission('edit'),
+  upload.array('files', 50), // Updated to 50 files
+  handleFileUploadError, // Error handler middleware
+  async (req, res) => {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No files uploaded' });
+    }
+    // console.log('Files received by /api/files/upload:', req.files.map(f => f.originalname));
+    res.status(200).json({
+      message: `${req.files.length} files uploaded successfully`,
+      files: req.files.map(f => ({ 
+        originalname: f.originalname, 
+        size: f.size,
+        mimetype: f.mimetype,
+        path: f.path // Send back path for confirmation
+      }))
     });
   }
 );

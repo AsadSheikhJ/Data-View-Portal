@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, List, ListItem, ListItemIcon, ListItemText,
   IconButton, Button, Divider, TextField, Dialog, DialogTitle,
   DialogContent, DialogActions, Menu, MenuItem, CircularProgress,
-  Breadcrumbs, Link, Tooltip, Snackbar, Alert
+  Breadcrumbs, Link, Tooltip, Snackbar, Alert, LinearProgress
 } from '@mui/material';
 import {
   Folder as FolderIcon,
@@ -30,7 +30,9 @@ const FileBrowser = () => {
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [contextMenu, setContextMenu] = useState(null);
-  const [fileToUpload, setFileToUpload] = useState(null);
+  const [filesToUpload, setFilesToUpload] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [isUploading, setIsUploading] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -115,34 +117,57 @@ const FileBrowser = () => {
 
   const handleUploadClose = () => {
     setUploadDialogOpen(false);
+    setFilesToUpload([]);
+    setUploadProgress({});
+    setIsUploading(false);
   };
 
   const handleFileInputChange = (event) => {
-    setFileToUpload(event.target.files[0]);
+    const selectedFiles = Array.from(event.target.files);
+    setFilesToUpload(selectedFiles);
+    const initialProgress = {};
+    selectedFiles.forEach(file => {
+      initialProgress[file.name] = 0;
+    });
+    setUploadProgress(initialProgress);
   };
 
-  const handleUploadFile = async () => {
-    if (!fileToUpload) return;
+  const handleUploadFiles = async () => {
+    if (!filesToUpload || filesToUpload.length === 0) return;
+
+    setIsUploading(true);
+    setUploadProgress({ overall: 0 });
 
     try {
-      setLoading(true);
-      await fileService.uploadFile(fileToUpload, currentPath);
+      await fileService.uploadMultipleFilesWithProgress(
+        filesToUpload, 
+        currentPath, 
+        (percentCompleted) => {
+          setUploadProgress({ overall: percentCompleted });
+        }
+      );
+
+      setIsUploading(false);
       setUploadDialogOpen(false);
-      loadFiles(); // Now loadFiles is defined
+      setFilesToUpload([]);
+      setUploadProgress({});
+      loadFiles();
       setSnackbar({
         open: true,
-        message: 'File uploaded successfully',
+        message: 'Files uploaded successfully',
         severity: 'success'
       });
     } catch (err) {
-      setError('Failed to upload file: ' + (err.message || 'Unknown error'));
+      setIsUploading(false);
+      const newProgress = {};
+      filesToUpload.forEach(f => newProgress[f.name] = 0);
+      setUploadProgress(newProgress);
+      setError('Failed to upload files: ' + (err.response?.data?.message || err.message || 'Unknown error'));
       setSnackbar({
         open: true,
-        message: 'File upload failed',
+        message: err.response?.data?.message || 'File upload failed',
         severity: 'error'
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -844,11 +869,12 @@ const FileBrowser = () => {
           borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
           fontWeight: 600
         }}>
-          Upload File
+          Upload Files
         </DialogTitle>
         <DialogContent sx={{ mt: 2 }}>
           <input 
             type="file" 
+            multiple
             onChange={handleFileInputChange} 
             style={{ 
               width: '100%',
@@ -858,19 +884,49 @@ const FileBrowser = () => {
               borderRadius: '8px',
             }}
           />
+          {/* Display list of selected files with progress */}
+          {filesToUpload.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2">Selected files:</Typography>
+              <List dense>
+                {filesToUpload.map((file, index) => (
+                  <ListItem key={index}>
+                    <ListItemText 
+                      primary={file.name} 
+                      secondary={`Size: ${fileService.formatFileSize(file.size)}`}
+                    />
+                    {isUploading && uploadProgress.overall !== undefined && (
+                      <Box sx={{ width: '50%', ml: 2 }}>
+                        <LinearProgress variant="determinate" value={uploadProgress.overall} />
+                        <Typography variant="caption">{`${uploadProgress.overall}%`}</Typography>
+                      </Box>
+                    )}
+                  </ListItem>
+                ))}
+              </List>
+              {/* Show overall progress if not per file, or just a general spinner */}
+              {isUploading && filesToUpload.length > 1 && uploadProgress.overall !== undefined && (
+                 <Box sx={{display: 'flex', alignItems: 'center', mt:1}}>
+                    <Typography variant="body2" sx={{mr:1}}>Overall Progress: </Typography>
+                    <LinearProgress variant="determinate" value={uploadProgress.overall} sx={{flexGrow:1}} />
+                    <Typography variant="caption" sx={{ml:1}}>{`${uploadProgress.overall}%`}</Typography>
+                 </Box>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2, pt: 0 }}>
-          <Button onClick={handleUploadClose} variant="outlined" size="small">
+          <Button onClick={handleUploadClose} variant="outlined" size="small" disabled={isUploading}>
             Cancel
           </Button>
           <Button 
-            onClick={handleUploadFile} 
+            onClick={handleUploadFiles}
             variant="contained" 
             color="primary"
             size="small"
-            disabled={!fileToUpload}
+            disabled={!filesToUpload || filesToUpload.length === 0 || isUploading}
           >
-            Upload
+            {isUploading ? 'Uploading...' : 'Upload'}
           </Button>
         </DialogActions>
       </Dialog>
