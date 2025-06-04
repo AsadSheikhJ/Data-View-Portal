@@ -7,6 +7,7 @@ const net = require('net');
 const fileRoutes = require('./routes/fileRoutes');
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
+const groupRoutes = require('./routes/groups');
 const sharedConfig = require('../shared-config');
 
 // Import authentication middleware
@@ -184,6 +185,7 @@ app.post('/api/files/config', authMiddleware, (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/files', authMiddleware, fileRoutes);
+app.use('/api/groups', authMiddleware, groupRoutes);
 
 // API status route
 app.get('/api/status', (req, res) => {

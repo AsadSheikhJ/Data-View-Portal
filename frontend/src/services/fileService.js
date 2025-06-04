@@ -96,7 +96,7 @@ const getRootDirectories = async () => {
     console.log('Getting root directories');
     
     // Get all files/folders from root directory
-    const files = await listFiles('');
+    const files = await listFiles('', '');
     
     // Filter to only include directories
     const directories = files
@@ -114,23 +114,22 @@ const getRootDirectories = async () => {
   }
 };
 
-// List files in a directory
-const listFiles = async (directory = '') => {
+// List files in a directory - NOW GROUP AWARE
+const listFiles = async (directory = '', groupId) => {
   try {
-    
-    // Make sure directory is properly encoded for URL
+    if (!groupId) {
+      // console.warn('listFiles called without groupId. Returning empty array.');
+      // Depending on UI, you might throw an error or handle this differently.
+      return []; // Or throw new Error('Group ID is required');
+    }
     const encodedDir = encodeURIComponent(directory);
-    const url = `/api/files?directory=${encodedDir}`;
+    const url = `/api/files?directory=${encodedDir}&groupId=${groupId}`;
     
     const response = await api.get(url);
-    
-    // Ensure we return an array
     const files = Array.isArray(response.data) ? response.data : [];
-    
     return files;
   } catch (error) {
     console.error('Error listing files:', error);
-    // Return empty array instead of throwing to avoid breaking the UI
     return [];
   }
 };
@@ -160,18 +159,19 @@ const uploadFile = async (file, directory = '') => {
   }
 };
 
-// New function for multiple files with progress
-const uploadMultipleFilesWithProgress = async (files, directory = '', onUploadProgress) => {
+// Upload multiple files with progress - NOW GROUP AWARE
+const uploadMultipleFilesWithProgress = async (files, directory = '', groupId, onUploadProgress) => {
   try {
+    if (!groupId) {
+      throw new Error('Group ID is required for upload');
+    }
     const formData = new FormData();
     files.forEach(file => {
-      formData.append('files', file); // Key is 'files', matching backend upload.array('files', ...)
+      formData.append('files', file);
     });
 
-    // console.log(`Uploading multiple files to directory: ${directory}`);
-    
     const response = await api.post(
-      `/api/files/upload?directory=${encodeURIComponent(directory)}`, // Ensure this endpoint is correct for multiple files
+      `/api/files/upload?directory=${encodeURIComponent(directory)}&groupId=${groupId}`,
       formData,
       {
         headers: {
@@ -185,42 +185,35 @@ const uploadMultipleFilesWithProgress = async (files, directory = '', onUploadPr
         }
       }
     );
-    
     return response.data;
   } catch (error) {
-    // console.error('Error uploading multiple files:', error);
     throw error;
   }
 };
 
-// Download a file
-const downloadFile = async (filePath) => {
+// Download a file - groupId as query param
+const downloadFile = async (filePath, groupId) => {
   try {
-    console.log(`Downloading file: ${filePath}`);
-    
-    const response = await api.get(`/api/files/download/${encodeURIComponent(filePath)}`, {
+    if (!groupId) throw new Error('Group ID is required for downloading a file');
+    const url = `/api/files/download/${encodeURIComponent(filePath)}?groupId=${groupId}`;
+    const response = await api.get(url, {
       responseType: 'blob',
       validateStatus: function (status) {
-        return status < 500; // Accept all statuses below 500, so we can handle errors with JSON bodies
+        return status < 500;
       }
     });
-
-    // Check if the response indicates an error (e.g., 403 Forbidden, 404 Not Found)
     if (response.status >= 400) {
       const contentType = response.headers['content-type'];
       let errorMessage = 'Failed to download file.';
       if (contentType && contentType.includes('application/json')) {
         try {
-          // response.data will be a Blob, so we need to read it as text
           const errorText = await response.data.text();
           const errorData = JSON.parse(errorText);
           errorMessage = errorData.message || `Error ${response.status}`;
         } catch (e) {
-          console.error('Could not parse JSON error from server:', e);
           errorMessage = `Server error (${response.status}), unable to parse error details.`;
         }
       } else {
-         // If not JSON, use a generic message or try to read response as text if possible
         try {
             const errorText = await response.data.text();
             errorMessage = errorText || `Server error (${response.status})`;
@@ -230,82 +223,63 @@ const downloadFile = async (filePath) => {
       }
       throw new Error(errorMessage);
     }
-    
-    // If response.status is 2xx, proceed with download
-    // Create a URL for the blob (response.data is the blob)
-    const url = window.URL.createObjectURL(response.data);
-    
-    // Create a link and trigger download
+    const blobUrl = window.URL.createObjectURL(response.data);
     const link = document.createElement('a');
-    link.href = url;
+    link.href = blobUrl;
     link.setAttribute('download', filePath.split('/').pop());
     document.body.appendChild(link);
     link.click();
     link.remove();
-    
-    // Clean up
-    window.URL.revokeObjectURL(url);
-
-  } catch (error) { // This catch block now handles errors thrown above or network errors
-    console.error('Error downloading file:', error);
-    // No need for error.response checks here as we handled HTTP errors above
-    // The error here is already an Error object with a message
-    throw error; // Re-throw the error with the specific message
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    throw error;
   }
 };
 
-// Download a folder as zip
-const downloadFolder = async (folderPath) => {
+// Download a folder as zip - groupId as query param
+const downloadFolder = async (folderPath, groupId) => {
   try {
-    console.log(`Downloading folder as zip: ${folderPath}`);
-    
-    const response = await api.get(`/api/files/download-folder/${encodeURIComponent(folderPath)}`, {
+    if (!groupId) throw new Error('Group ID is required for downloading a folder');
+    const url = `/api/files/download-folder/${encodeURIComponent(folderPath)}?groupId=${groupId}`;
+    const response = await api.get(url, {
       responseType: 'blob'
     });
-    
-    // Check if the response is an error message in JSON format
+    if (response.status >= 400) {
+        throw new Error(`Error ${response.status} downloading folder.`);
+    }
     const contentType = response.headers['content-type'];
     if (contentType && contentType.includes('application/json')) {
       const text = await response.data.text();
       const errorData = JSON.parse(text);
-      throw new Error(errorData.message || 'Permission denied');
+      throw new Error(errorData.message || 'Permission denied or error downloading folder');
     }
-    
-    // Create a URL for the blob
-    const url = window.URL.createObjectURL(new Blob([response.data]));
-    
-    // Create a link and trigger download
+    const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
-    link.href = url;
-    const folderName = folderPath.split('/').pop() || 'folder';
-    link.setAttribute('download', `${folderName}.zip`);
+    link.href = blobUrl;
+    const zipFolderName = folderPath.split('/').pop() || 'archive';
+    link.setAttribute('download', `${zipFolderName}.zip`);
     document.body.appendChild(link);
     link.click();
     link.remove();
-    
-    // Clean up
-    window.URL.revokeObjectURL(url);
-    
+    window.URL.revokeObjectURL(blobUrl);
     return { success: true };
   } catch (error) {
     console.error('Error downloading folder:', error);
-    if (error.response?.status === 403) {
-      throw new Error("You don't have permission to download folders");
-    }
-    throw new Error(error.response?.data?.message || error.message || 'Failed to download folder');
+    throw error;
   }
 };
 
-// Rename a file or folder
-const renameItem = async (oldPath, newName) => {
+// Rename a file or folder - groupId in body (already correct)
+const renameItem = async (oldPath, newName, groupId) => {
   try {
-    console.log(`Renaming ${oldPath} to ${newName}`);
-    
+    if (!groupId) {
+      throw new Error('Group ID is required for renaming an item');
+    }
     const response = await api.put('/api/files/rename', {
-      oldPath,
-      newName
+      oldPath, 
+      newName,
+      groupId
     });
-    
     return response.data;
   } catch (error) {
     console.error('Error renaming item:', error);
@@ -313,11 +287,13 @@ const renameItem = async (oldPath, newName) => {
   }
 };
 
-// Delete a file or directory
-const deleteItem = async (path) => {
+// Delete a file or directory - groupId as query param
+const deleteItem = async (itemPath, groupId) => {
   try {
-    console.log(`Deleting item: ${path}`);
-    const response = await api.delete(`/api/files/${encodeURIComponent(path)}`);
+    if (!groupId) {
+      throw new Error('Group ID is required for deleting an item');
+    }
+    const response = await api.delete(`/api/files/${encodeURIComponent(itemPath)}?groupId=${groupId}`);
     return response.data;
   } catch (error) {
     console.error('Error deleting item:', error);
@@ -325,17 +301,19 @@ const deleteItem = async (path) => {
   }
 };
 
-// Create a new directory
-const createDirectory = async (parentPath, name) => {
+// Create a new directory - NOW GROUP AWARE
+const createDirectory = async (parentPath, name, groupId) => {
   try {
-    const dirPath = parentPath ? `${parentPath}/${name}` : name;
-    console.log(`Creating directory: ${dirPath}`);
-    
+    if (!groupId) {
+      throw new Error('Group ID is required for creating a directory');
+    }
+    // const dirPath = parentPath ? `${parentPath}/${name}` : name; // This was the old logic
+    // Backend now expects parentPath to be relative to group root, and name separately.
     const response = await api.post('/api/files/directory', { 
       name,
-      path: dirPath
+      path: parentPath, // This is the relative path *within* the group
+      groupId
     });
-    
     return response.data;
   } catch (error) {
     console.error('Error creating directory:', error);
@@ -343,8 +321,23 @@ const createDirectory = async (parentPath, name) => {
   }
 };
 
+// New function to get group subdirectories
+const getGroupSubdirectories = async (groupId) => {
+  if (!groupId) {
+    throw new Error('Group ID is required to fetch subdirectories.');
+  }
+  try {
+    const response = await api.get(`/api/files/group-subdirectories?groupId=${groupId}`);
+    return response.data; // Expects an array of subdirectory names
+  } catch (error) {
+    console.error(`Error fetching subdirectories for group ${groupId}:`, error);
+    throw error.response?.data || new Error('Failed to fetch group subdirectories.');
+  }
+};
+
 // Export functions
 const fileService = {
+  api,
   listFiles,
   uploadFile,
   uploadMultipleFilesWithProgress,
@@ -356,7 +349,8 @@ const fileService = {
   formatFileSize,
   getDirectoryConfig,
   updateDirectoryConfig,
-  getRootDirectories
+  getRootDirectories,
+  getGroupSubdirectories
 };
 
 export default fileService;
