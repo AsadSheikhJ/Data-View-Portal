@@ -51,6 +51,16 @@ async function getGroupUserAndPath(groupId, accessingUser, requiredPermissionKey
       throw { status: 403, message: 'User permissions not defined.' };
   }
 
+  // --- Add these debug logs ---
+  console.log(`[Debug FileRoutes] getGroupUserAndPath for user ID ${accessingUser.id}, attempting operation requiring: '${requiredPermissionKey}'`);
+  console.log(`[Debug FileRoutes] Full User Permissions Object (from req.user.permissions):`, JSON.stringify(accessingUser.permissions, null, 2));
+  if (requiredPermissionKey && accessingUser.permissions.hasOwnProperty(requiredPermissionKey)) {
+    console.log(`[Debug FileRoutes] Value of required permission key '${requiredPermissionKey}':`, accessingUser.permissions[requiredPermissionKey]);
+  } else if (requiredPermissionKey) {
+    console.log(`[Debug FileRoutes] Required permission key '${requiredPermissionKey}' is NOT present in user permissions object.`);
+  }
+  // --- End of debug logs ---
+
   let hasPermission = false;
   let permissionErrorMessage = 'User does not have sufficient permission for this operation.';
 

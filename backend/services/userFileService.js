@@ -1,6 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const bcrypt = require('bcryptjs');
+const groupFileService = require('./groupFileService');
 
 const usersFilePath = path.join(__dirname, '..', 'data', 'users.json');
 
@@ -102,10 +103,25 @@ async function updateUser(userId, updateData) {
   }
 
   const originalUser = users[userIndex];
-  const updatedUser = { ...originalUser, ...updateData };
+  // Start with the original user data, then selectively apply updates.
+  let updatedUser = { ...originalUser };
 
-  if (updateData.password) {
+  // Apply all non-password updates from updateData
+  for (const key in updateData) {
+    if (key !== 'password') {
+      updatedUser[key] = updateData[key];
+    }
+  }
+
+  // Handle password update specifically
+  // If a new password is provided and it's a non-empty string, hash it.
+  if (updateData.password && typeof updateData.password === 'string' && updateData.password.trim() !== '') {
     updatedUser.password = await bcrypt.hash(updateData.password, 10);
+  } else {
+    // Otherwise, ensure the original password (already in updatedUser due to {...originalUser}) is retained.
+    // This explicit 'else' block clarifies the intent, though technically covered if updateData.password is undefined.
+    // If updateData.password was null or an empty string, this ensures originalUser.password is used.
+    updatedUser.password = originalUser.password;
   }
   
   updatedUser.updatedAt = new Date().toISOString();
@@ -128,6 +144,16 @@ async function deleteUser(userId) {
 
   if (filteredUsers.length < initialLength) {
     await writeUsersFile(filteredUsers);
+    
+    // After deleting user, remove them from all groups
+    try {
+      await groupFileService.removeUserFromAllGroups(numericUserId);
+      console.log(`User ${numericUserId} successfully removed from all groups.`);
+    } catch (error) {
+      console.error(`Error removing user ${numericUserId} from groups:`, error.message);
+      // Decide if this error should be propagated or just logged
+      // For now, logging and continuing as user deletion was successful
+    }
     return true; // User was deleted
   }
   return false; // User not found or not deleted

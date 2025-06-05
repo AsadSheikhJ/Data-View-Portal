@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { CssBaseline, ThemeProvider, createTheme, Container, CircularProgress } from '@mui/material';
+import { CssBaseline, ThemeProvider, createTheme, Container, CircularProgress, Box } from '@mui/material';
 import Login from './components/Login';
 import Register from './components/Register';
 import Dashboard from './components/Dashboard';
@@ -232,7 +232,7 @@ const PublicRoute = ({ children }) => {
 };
 
 function AppContent() {
-  // Use localStorage to remember theme preference, default to 'light' if not set
+  const { isAuthenticated, loading } = useAuth(); // Get auth state here
   const [mode, setMode] = useState(() => {
     const savedMode = localStorage.getItem('themeMode');
     return savedMode ? savedMode : 'light';
@@ -243,16 +243,31 @@ function AppContent() {
   const toggleColorMode = () => {
     setMode((prevMode) => {
       const newMode = prevMode === 'light' ? 'dark' : 'light';
-      // Save to localStorage
       localStorage.setItem('themeMode', newMode);
       return newMode;
     });
   };
+
+  // Handle loading state for root redirect
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Router>
         <Routes>
+          {/* Root path redirect based on auth state */}
+          <Route 
+            path="/"
+            element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
+          />
+
           {/* Existing public routes like /login, /register */}
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />

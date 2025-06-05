@@ -188,6 +188,48 @@ async function updateGroupRestrictedSubdirectories(groupId, subdirectories) {
   return groups[groupIndex];
 }
 
+async function removeUserFromAllGroups(userIdToRemove) {
+  console.log(`[Debug] Attempting to remove user ID: ${userIdToRemove} (type: ${typeof userIdToRemove}) from all groups.`);
+  const groups = await readGroupsFile();
+  let modified = false;
+  
+  const updatedGroups = groups.map(group => {
+    console.log(`[Debug] Processing group: ${group.name} (ID: ${group.id})`);
+    const initialUserCount = group.users.length;
+    
+    const updatedUsers = group.users.filter(userInGroup => {
+      console.log(`[Debug] Comparing group user ID: ${userInGroup.userId} (type: ${typeof userInGroup.userId}) with userIdToRemove: ${userIdToRemove}`);
+      return userInGroup.userId !== userIdToRemove;
+    });
+    
+    if (updatedUsers.length < initialUserCount) {
+      console.log(`[Debug] User ${userIdToRemove} found in group ${group.name}. Marking for update.`);
+      modified = true;
+      return { ...group, users: updatedUsers, updatedAt: new Date().toISOString() };
+    }
+    console.log(`[Debug] User ${userIdToRemove} NOT found in group ${group.name} or no change needed.`);
+    return group;
+  });
+
+  console.log(`[Debug] Finished mapping groups. 'modified' flag is: ${modified}`);
+
+  if (modified) {
+    console.log(`[Debug] 'modified' is true. Attempting to write updated groups file.`);
+    try {
+      await writeGroupsFile(updatedGroups);
+      console.log(`User ${userIdToRemove} removed from all relevant groups and file written.`);
+    } catch (error) {
+      console.error(`[Critical Error] Failed to write groups file after attempting to remove user ${userIdToRemove}:`, error.message);
+      // Re-throw the error so the caller (userFileService.deleteUser) can potentially catch it
+      // or at least be aware the operation was not fully successful.
+      throw error; 
+    }
+  } else {
+    console.log(`[Debug] 'modified' is false. No changes made to groups file for user ${userIdToRemove}.`);
+  }
+  return modified;
+}
+
 module.exports = {
   getAllGroups,
   createGroup,
@@ -197,4 +239,5 @@ module.exports = {
   addUserToGroup,
   removeUserFromGroup,
   updateGroupRestrictedSubdirectories, // Renamed export
+  removeUserFromAllGroups, // Add new function to exports
 }; 
