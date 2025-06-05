@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
-const User = require('../models/User');
+const userFileService = require('../services/userFileService');
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
@@ -20,7 +20,7 @@ router.post('/login', async (req, res) => {
     }
     
     // Find user by email
-    const user = await User.getUserByEmail(email);
+    const user = await userFileService.getUserByEmail(email);
     
     if (!user) {
       console.log(`User not found: ${email}`);
@@ -77,7 +77,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
   try {
     const userId = req.user.id;
-    const user = await User.getUserById(userId);
+    const user = await userFileService.getUserById(userId);
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -106,7 +106,7 @@ router.post('/verify', async (req, res) => {
       const decoded = jwt.verify(token, JWT_SECRET);
       
       // Check if user exists
-      const user = await User.getUserById(decoded.id);
+      const user = await userFileService.getUserById(decoded.id);
       
       if (!user) {
         return res.json({ valid: false });

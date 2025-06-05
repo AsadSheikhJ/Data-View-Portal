@@ -4,24 +4,25 @@ const router = express.Router();
 // const fs = require('fs').promises; // Not strictly needed if userFileService handles fs operations
 const bcrypt = require('bcryptjs'); // Kept for password operations if createUser/updateUser handle it
 const auth = require('../middleware/auth');
+const { checkPermission } = require('../middleware/permissions'); // ADDED
 // const UserModel = require('../models/User'); // REMOVED Mongoose Model
 const userFileService = require('../services/userFileService'); // ADDED File Service
 
-// Admin-only middleware
-function adminOnly(req, res, next) {
-  if (!req.user) {
-    return res.status(401).json({ message: 'Authentication required' });
-  }
-  
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Admin access required' });
-  }
-  
-  next();
-}
+// Admin-only middleware - REMOVED
+// function adminOnly(req, res, next) {
+//   if (!req.user) {
+//     return res.status(401).json({ message: 'Authentication required' });
+//   }
+//   
+//   if (req.user.role !== 'admin') {
+//     return res.status(403).json({ message: 'Admin access required' });
+//   }
+//   
+//   next();
+// }
 
 // Get all users (admin only)
-router.get('/', auth, adminOnly, async (req, res) => {
+router.get('/', auth, checkPermission('admin'), async (req, res) => {
   console.log('[UserRoutes GET /] req.user received from authMiddleware:', JSON.stringify(req.user));
   try {
     const users = await userFileService.getUsers();
@@ -42,7 +43,7 @@ router.get('/', auth, adminOnly, async (req, res) => {
 });
 
 // Create user (admin only)
-router.post('/', auth, adminOnly, async (req, res) => {
+router.post('/', auth, checkPermission('admin'), async (req, res) => {
   try {
     const { name, email, password, role, permissions } = req.body;
     
@@ -106,7 +107,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // Update user
-router.put('/:id', auth, adminOnly, async (req, res) => {
+router.put('/:id', auth, checkPermission('admin'), async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
     if (isNaN(userId)) {
@@ -139,7 +140,7 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
 });
 
 // Delete user
-router.delete('/:id', auth, adminOnly, async (req, res) => {
+router.delete('/:id', auth, checkPermission('admin'), async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
     if (isNaN(userId)) {
