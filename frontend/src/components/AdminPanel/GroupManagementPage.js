@@ -13,13 +13,15 @@ import {
   Divider,
   CircularProgress,
   Alert,
-  Snackbar
+  Snackbar,
+  Avatar
 } from '@mui/material';
 import {
   Group as GroupIcon,
   Add as AddIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  PeopleAlt as PeopleAltIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -123,62 +125,85 @@ const GroupManagementPage = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Paper elevation={3} sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h4" gutterBottom>
-            Group Management
+    <Container maxWidth="xlg" >
+      <Box sx={{ p: { xs: 0, md: 0 }}}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
+          <Typography variant="h5" component="h2" sx={{ fontWeight: 600 }}>
+            Groups
           </Typography>
           <Button
             variant="contained"
-            color="primary"
             startIcon={<AddIcon />}
             onClick={handleOpenCreateDialog}
             disabled={isLoading} 
+            sx={{ fontWeight: 500 }}
           >
             Create New Group
           </Button>
         </Box>
-        <Divider sx={{ mb: 2 }} />
 
         {isLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5 }}>
             <CircularProgress />
+            <Typography sx={{ ml: 2 }}>Loading groups...</Typography>
           </Box>
         ) : groups.length === 0 ? (
-          <Typography sx={{mt: 2, textAlign: 'center'}}>
-            No groups found. Click "Create New Group" to add one.
-            {error && <Alert severity="warning" sx={{mt: 1}}>{error}</Alert>} 
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', py: 6, border: '1px dashed', borderColor: 'divider', borderRadius: 1.5, mt: 2 }}>
+            <GroupIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+            <Typography variant="h6" color="text.secondary">No groups found.</Typography>
+            <Typography color="text.secondary">Click "Create New Group" to add one.</Typography>
+            {error && <Alert severity="warning" sx={{mt: 2, width: 'fit-content'}}>{error}</Alert>} 
+          </Box>
         ) : (
-          <List>
+          <List sx={{ pt: 0 }}>
             {groups.map((group) => (
-              <ListItem 
+              <Paper 
                 key={group.id} 
-                secondaryAction={
-                  <Box>
-                    <IconButton edge="end" aria-label="edit" onClick={() => handleOpenEditDialog(group)} sx={{mr: 1}}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteGroup(group.id, group.name)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </Box>
-                }
-                divider
+                sx={{ 
+                  mb: 1.5, 
+                  p: 2, 
+                  borderRadius: 1.5, 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  transition: 'box-shadow 0.3s',
+                  '&:hover': {
+                    boxShadow: (theme) => theme.shadows[2]
+                  }
+                }}
               >
-                <ListItemIcon>
-                  <GroupIcon />
-                </ListItemIcon>
-                <ListItemText 
-                  primary={group.name} 
-                  secondary={group.description || 'No description'} 
-                />
-              </ListItem>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                  <Avatar sx={{ bgcolor: 'primary.main', mr: 2, mt: 0.5 }}>
+                    <GroupIcon sx={{ color: 'white'}} />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h6" component="div" sx={{ fontWeight: 500 }}>
+                      {group.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      {group.description || 'No description provided.'}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', color: 'text.secondary' }}>
+                      <PeopleAltIcon fontSize="small" sx={{ mr: 0.5 }} />
+                      <Typography variant="caption">
+                        {Array.isArray(group.users) ? group.users.length : 0} member(s)
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', ml: 1, mt: -0.5 }}>
+                  <IconButton edge="end" aria-label="edit" onClick={() => handleOpenEditDialog(group)} sx={{mr: 0.5}}>
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteGroup(group.id, group.name)} color="error">
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+              </Paper>
             ))}
           </List>
         )}
-      </Paper>
+      </Box>
 
       <GroupDialog 
         open={isDialogOpen}

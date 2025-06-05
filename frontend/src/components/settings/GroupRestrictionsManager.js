@@ -123,7 +123,7 @@ const GroupRestrictionsManager = ({
       <Typography variant="body2" color="text.secondary" paragraph>
         Users in this group ({currentGroupDetails.users?.map(u => u.user?.username || u.user?.id || 'Unknown').join(', ') || 'No users'}): 
         will not be able to see or access the selected subdirectories within the group's main path 
-        (<code>{currentGroupPathInput}</code>).\n      </Typography>
+        (<code>{currentGroupPathInput}</code>)      </Typography>
 
       {isLoadingAvailableSubdirs ? (
         <CircularProgress sx={{ my: 2 }} />

@@ -289,7 +289,9 @@ const Dashboard = ({ darkMode, toggleDarkMode }) => {
                     else setCurrentSection(item.section);
                     if (isMobile) handleDrawerToggle();
                   }}
-                  sx={{ 
+                  sx={{
+                    
+                    cursor: 'pointer',
                     mb: 0.5, 
                     borderRadius: 1,
                     '&.Mui-selected': {

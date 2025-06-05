@@ -31,7 +31,8 @@ import {
 import {
   Add as AddIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  People as PeopleIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiConfig } from '../services/apiConfig';
@@ -322,81 +323,94 @@ const UserManagement = () => {
     setSnackbar({ ...snackbar, open: false });
   };
 
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 200px)' }}>
+        <CircularProgress />
+        <Typography sx={{ ml: 2 }}>Loading users...</Typography>
+      </Box>
+    );
+  }
+
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 ,paddingTop: 4}}>
-        <Typography variant="h4" component="h2">
-          User Management
+    <Box sx={{ p: { xs: 1, md: 2 } }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h5" component="h2" sx={{ fontWeight: 600 }}>
+          Members
         </Typography>
         <Button
-    
           variant="contained"
-          color="primary"
           startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog('add')
-          }
+          onClick={() => handleOpenDialog('add')}
+          sx={{ fontWeight: 500 }}
         >
           Add User
         </Button>
       </Box>
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
+      {users.length === 0 ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', py: 5, border: '1px dashed', borderColor: 'divider', borderRadius: 1 }}>
+          <PeopleIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary">No users found.</Typography>
+          <Typography color="text.secondary">Click "Add User" to create the first one.</Typography>
         </Box>
       ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
+        <TableContainer sx={{ borderRadius: 1.5 }}>
+          <Table aria-label="user management table">
+            <TableHead sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100' }}>
               <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Permissions</TableCell>
-                <TableCell>Actions</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Name</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Email</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Role</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Permissions</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {Array.isArray(users) && users.length > 0 ? (
-                users.map((user) => (
-                  <TableRow key={user.id || Math.random()}>
-                    <TableCell>{user.name || 'N/A'}</TableCell>
-                    <TableCell>{user.email || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={user.role || 'user'} 
-                        color={(user.role === 'admin') ? 'primary' : 'default'}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {user.permissions?.view && <Chip label="View" size="small" sx={{ mr: 0.5 }} />}
-                      {user.permissions?.edit && <Chip label="Edit" size="small" color="primary" sx={{ mr: 0.5 }} />}
-                      {user.permissions?.download && <Chip label="Download" size="small" color="secondary" />}
-                    </TableCell>
-                    <TableCell>
-                      <IconButton 
-                        color="primary"
-                        onClick={() => handleOpenDialog('edit', user)}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton 
-                        color="error" 
-                        disabled={user.id === currentLoggedUser?.id}
-                        onClick={() => handleDeleteUser(user.id)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} align="center">
-                    No users found
+              {users.map((user) => (
+                <TableRow key={user.id} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                  <TableCell component="th" scope="row">
+                    {user.name}
+                  </TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={user.role} 
+                      size="small" 
+                      color={user.role === 'admin' ? 'primary' : 'default'} 
+                      sx={{ textTransform: 'capitalize', fontWeight: 500 }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {user.permissions && (
+                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                        {user.permissions.view && <Chip label="View" size="small" variant="outlined" sx={{ bgcolor: 'info.lighter', color: 'info.darker', borderColor: 'info.main' }} />}
+                        {user.permissions.edit && <Chip label="Edit" size="small" variant="outlined" sx={{ bgcolor: 'success.lighter', color: 'success.darker', borderColor: 'success.main' }} />}
+                        {user.permissions.download && <Chip label="Download" size="small" variant="outlined" sx={{ bgcolor: 'secondary.lighter', color: 'secondary.darker', borderColor: 'secondary.main' }} />}
+                      </Box>
+                    )}
+                  </TableCell>
+                  <TableCell align="right">
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleOpenDialog('edit', user)} 
+                      disabled={currentLoggedUser && currentLoggedUser.id === user.id && user.role === 'admin'} // Prevent admin from editing self to lose admin role by mistake
+                      title={currentLoggedUser && currentLoggedUser.id === user.id && user.role === 'admin' ? "Cannot edit current admin user directly" : "Edit user"}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleDeleteUser(user.id)} 
+                      disabled={currentLoggedUser && currentLoggedUser.id === user.id} // Prevent self-deletion
+                      title={currentLoggedUser && currentLoggedUser.id === user.id ? "Cannot delete self" : "Delete user"}
+                      color="error"
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
                   </TableCell>
                 </TableRow>
-              )}
+              ))}
             </TableBody>
           </Table>
         </TableContainer>

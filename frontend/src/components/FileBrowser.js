@@ -17,7 +17,8 @@ import {
   NavigateNext as NavigateNextIcon,
   ArrowBack as ArrowBackIcon,
   Edit as EditIcon,
-  Archive as ArchiveIcon
+  Archive as ArchiveIcon,
+  Block as BlockIcon
 } from '@mui/icons-material';
 import fileService from '../services/fileService';
 import { useAuth } from '../contexts/AuthContext';
@@ -128,6 +129,14 @@ const FileBrowser = () => {
 
   const handleFileClick = (file) => {
     if (file.isDirectory) {
+      if (file.isRestricted) {
+        setSnackbar({
+          open: true,
+          message: 'Access to this folder is restricted.',
+          severity: 'warning',
+        });
+        return;
+      }
       setCurrentPath(file.path);
     } else if (canDownload) {
       handleDownloadFile(file);
@@ -242,9 +251,21 @@ const FileBrowser = () => {
       const groupIdToUse = selectedGroup.id || selectedGroup._id;
       await fileService.downloadFile(file.path, groupIdToUse);
     } catch (err) {
+      let displayMessage = 'Failed to download file.';
+      if (err.response) {
+        if (err.response.data && err.response.data.message) {
+          displayMessage = err.response.data.message;
+        } else if (err.response.status === 403) {
+          displayMessage = 'Access to this file is restricted.';
+        } else {
+          displayMessage = `Error: ${err.response.statusText || err.message}`;
+        }
+      } else if (err.message) {
+        displayMessage = err.message;
+      }
       setSnackbar({
         open: true,
-        message: err.message || 'Failed to download file',
+        message: displayMessage,
         severity: 'error'
       });
     }
@@ -253,6 +274,14 @@ const FileBrowser = () => {
   const handleDownloadFolder = async (folder, event) => {
     if (event) {
       event.stopPropagation();
+    }
+    if (folder.isRestricted) {
+      setSnackbar({
+        open: true,
+        message: 'Access to this folder is restricted and it cannot be downloaded.',
+        severity: 'error'
+      });
+      return;
     }
 
     if (!canDownload || !selectedGroup || !(selectedGroup.id || selectedGroup._id)) {
@@ -269,13 +298,25 @@ const FileBrowser = () => {
       await fileService.downloadFolder(folder.path, groupIdToUse);
       setSnackbar({
         open: true,
-        message: 'Folder download started',
+        message: 'Folder download started.',
         severity: 'success'
       });
     } catch (err) {
+      let displayMessage = 'Failed to download folder.';
+      if (err.response) {
+        if (err.response.data && err.response.data.message) {
+          displayMessage = err.response.data.message;
+        } else if (err.response.status === 403) {
+          displayMessage = 'Access to this folder is restricted.';
+        } else {
+          displayMessage = `Error: ${err.response.statusText || err.message}`;
+        }
+      } else if (err.message) {
+        displayMessage = err.message;
+      }
       setSnackbar({
         open: true,
-        message: err.message || 'Failed to download folder',
+        message: displayMessage,
         severity: 'error'
       });
     }
@@ -626,16 +667,19 @@ const FileBrowser = () => {
                   key={file.path || Math.random()}
                   component="div"
                   sx={{ 
-                    cursor: 'pointer',
+                    cursor: (file.isDirectory && file.isRestricted) ? 'not-allowed' : 'pointer',
                     py: 0.75,
                     px: 1,
                     borderRadius: 1,
                     mb: 0.5,
                     bgcolor: 'background.paper',
+                    opacity: (file.isDirectory && file.isRestricted) ? 0.6 : 1,
                     '&:hover': {
-                      bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+                      bgcolor: (file.isDirectory && file.isRestricted) 
+                        ? 'background.paper' 
+                        : (theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'),
                     },
-                    transition: 'background-color 0.2s',
+                    transition: 'background-color 0.2s, opacity 0.2s',
                     border: '1px solid',
                     borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
                   }}
@@ -644,7 +688,10 @@ const FileBrowser = () => {
                 >
                   <ListItemIcon sx={{ minWidth: { xs: 36, sm: 42 } }}>
                     {file.isDirectory ? 
-                      <FolderIcon color="primary" fontSize="small" /> : 
+                      (file.isRestricted ? 
+                        <Tooltip title="Restricted Folder"><BlockIcon color="disabled" fontSize="small" /></Tooltip> : 
+                        <FolderIcon color="primary" fontSize="small" />
+                      ) : 
                       <FileIcon fontSize="small" sx={{ color: theme => theme.palette.mode === 'dark' ? '#aaa' : '#666' }} />
                     }
                   </ListItemIcon>
@@ -655,7 +702,7 @@ const FileBrowser = () => {
                         component="div" 
                         sx={{ 
                           fontWeight: file.isDirectory ? 600 : 400,
-                          color: file.isDirectory ? 'primary.main' : 'text.primary',
+                          color: (file.isDirectory && file.isRestricted) ? 'text.disabled' : (file.isDirectory ? 'primary.main' : 'text.primary'),
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap'
