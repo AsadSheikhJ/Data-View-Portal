@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, Select, message } from 'antd';
-import API from '../utils/api';
+import axios from 'axios';
+import { getApiConfig } from './apiConfig';
+
+const getAPIUrl = () => getApiConfig().baseUrl;
+
+// Create axios instance with dynamic config
+const api = axios.create({
+  baseURL: getAPIUrl(),
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
 
 const { Option } = Select;
 
@@ -41,7 +52,7 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await API.get('/api/users');
+      const response = await api.get('/api/users');
       setUsers(response.data);
     } catch (error) {
       message.error('Failed to fetch users');
@@ -52,7 +63,7 @@ const UserManagement = () => {
 
   const handleCreate = async (values) => {
     try {
-      await API.post('/api/users', values);
+      await api.post('/api/users', values);
       message.success('User created successfully');
       setVisible(false);
       form.resetFields();
@@ -64,7 +75,7 @@ const UserManagement = () => {
 
   const handleDelete = async (userId) => {
     try {
-      await API.delete(`/api/users/${userId}`);
+      await api.delete(`/api/users/${userId}`);
       message.success('User deleted successfully');
       fetchUsers();
     } catch (error) {

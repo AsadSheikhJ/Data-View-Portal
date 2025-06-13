@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { 
   Button, TextField, Typography, Container, Box, 
   Paper, Avatar, Alert, CircularProgress
@@ -13,10 +13,21 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
   
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, isLoggedIn, loading } = useAuth();
-  
+
+  useEffect(() => {
+    // Check if we were redirected due to session expiration
+    const params = new URLSearchParams(location.search);
+    if (params.get('session') === 'expired') {
+      setSessionExpired(true);
+      setErrorMessage('Your session has expired. Please log in again to continue.');
+    }
+  }, [location]);
+
   // Only redirect after authentication check is complete
   if (!loading && isLoggedIn) {
     return <Navigate to="/dashboard" />;
@@ -71,7 +82,13 @@ const Login = () => {
           Sign in to File Manager
         </Typography>
         
-        {errorMessage && (
+        {sessionExpired && (
+          <Alert severity="info" sx={{ width: '100%', mt: 2 }}>
+            Your session has expired. Please log in again to continue.
+          </Alert>
+        )}
+        
+        {errorMessage && !sessionExpired && (
           <Alert severity="error" sx={{ width: '100%', mt: 2 }}>
             {errorMessage}
           </Alert>

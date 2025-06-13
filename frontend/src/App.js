@@ -8,6 +8,7 @@ import Settings from './components/Settings';
 import NotFound from './components/NotFound';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import GroupManagementPage from './components/AdminPanel/GroupManagementPage';
+import { NotificationProvider } from './contexts/NotificationContext';
 
 
 // Create theme with enhanced aesthetics
@@ -304,7 +305,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <NotificationProvider>
+        <AppContent />
+      </NotificationProvider>
     </AuthProvider>
   );
 }

@@ -35,21 +35,7 @@ import {
   People as PeopleIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { getApiConfig } from '../services/apiConfig';
-
-// Get the API URL from our centralized configuration
-const getAPIUrl = () => {
-  // First check for runtime configuration (from window.runtimeConfig)
-  // if (window.runtimeConfig && window.runtimeConfig.API_URL) {
-  //   return window.runtimeConfig.API_URL;
-  // }
-  
-  // Then fall back to our centralized API config
-  return getApiConfig().baseUrl;
-};
-
-// Define API URL
-const API_URL = getAPIUrl();
+import { userApi } from '../services/api';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -74,46 +60,13 @@ const UserManagement = () => {
     severity: 'success'
   });
 
-  const { user: currentLoggedUser, token } = useAuth();
+  const { user: currentLoggedUser } = useAuth();
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      // Get token from localStorage if not available in context
-      const authToken = token || localStorage.getItem('token');
-      
-      if (!authToken) {
-        throw new Error('Authentication token not available');
-      }
-      
-      const response = await fetch(`${API_URL}/api/users`, {
-        headers: { 
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-      
-      // Check if response is ok
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Error response (${response.status}):`, errorText);
-        throw new Error(`Server error: ${response.status} ${response.statusText}`);
-      }
-      
-      // Try to parse as JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const textResponse = await response.text();
-        console.error('Unexpected non-JSON response:', textResponse);
-        throw new Error('Server returned non-JSON response');
-      }
-      
-      const usersData = await response.json();
-      
-      // Ensure users is always an array
-      setUsers(Array.isArray(usersData) ? usersData : []);
-      
+      const response = await userApi.getAllUsers();
+      setUsers(Array.isArray(response.data) ? response.data : []);
       setSnackbar({
         open: true,
         message: 'Users loaded successfully',
@@ -124,13 +77,13 @@ const UserManagement = () => {
       setUsers([]);
       setSnackbar({
         open: true,
-        message: 'Failed to load users: ' + error.message,
+        message: 'Failed to load users: ' + (error.response?.data?.message || error.message),
         severity: 'error'
       });
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchUsers();
@@ -211,63 +164,26 @@ const UserManagement = () => {
         return;
       }
 
-      // Get token from localStorage if not available in context
-      const authToken = token || localStorage.getItem('token');
-      
-      if (!authToken) {
-        setSnackbar({
-          open: true,
-          message: 'You must be logged in to perform this action',
-          severity: 'error'
-        });
-        return;
+      let response;
+      if (dialogMode === 'add') {
+        response = await userApi.createUser(formData);
+      } else {
+        response = await userApi.updateUser(currentUser.id, formData);
       }
-      
-      // Prepare API call
-      const apiEndpoint = `${API_URL}/api/users${dialogMode === 'edit' && currentUser ? `/${currentUser.id}` : ''}`;
-      const method = dialogMode === 'add' ? 'POST' : 'PUT';
-      
-      console.log(`${method} request to ${apiEndpoint}`);
-      console.log('Form data:', { ...formData, password: formData.password ? '******' : '' });
-      
-      const response = await fetch(apiEndpoint, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify(formData)
-      });
-      
-      if (!response.ok) {
-        const contentType = response.headers.get('content-type');
-        
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || `Server error: ${response.status}`);
-        } else {
-          throw new Error(`Server error: ${response.status} ${response.statusText}`);
-        }
-      }
-      
-      const data = await response.json();
-      console.log('API Response:', data);
-      
-      // Success message
+
       setSnackbar({
         open: true,
         message: `User ${dialogMode === 'add' ? 'created' : 'updated'} successfully`,
         severity: 'success'
       });
-      
+
       handleCloseDialog();
       fetchUsers(); // Refresh the list
     } catch (error) {
       console.error('Error submitting form:', error);
-      
       setSnackbar({
         open: true,
-        message: `Failed to save user: ${error.message}`,
+        message: `Failed to save user: ${error.response?.data?.message || error.message}`,
         severity: 'error'
       });
     }
@@ -276,33 +192,8 @@ const UserManagement = () => {
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        const authToken = token || localStorage.getItem('token');
-        
-        if (!authToken) {
-          throw new Error('Authentication token not available');
-        }
-        
-        const response = await fetch(`${API_URL}/api/users/${userId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${authToken}`
-          }
-        });
-        
-        if (!response.ok) {
-          const contentType = response.headers.get('content-type');
-          
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `Server error: ${response.status}`);
-          } else {
-            throw new Error(`Server error: ${response.status} ${response.statusText}`);
-          }
-        }
-        
-        // Remove the deleted user from the local state
+        await userApi.deleteUser(userId);
         setUsers(prev => prev.filter(user => user.id !== userId));
-        
         setSnackbar({
           open: true,
           message: 'User deleted successfully',
@@ -312,7 +203,7 @@ const UserManagement = () => {
         console.error('Error deleting user:', error);
         setSnackbar({
           open: true,
-          message: 'Failed to delete user: ' + error.message,
+          message: 'Failed to delete user: ' + (error.response?.data?.message || error.message),
           severity: 'error'
         });
       }
