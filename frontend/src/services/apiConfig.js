@@ -6,24 +6,24 @@
 // Get API base URL from different sources with priority
 const getBaseUrl = () => {
   // First priority: Runtime configuration (set by the server at serve time)
-  // if (window.runtimeConfig && window.runtimeConfig.API_URL) {
-  //   return window.runtimeConfig.API_URL;
-  // }
+  if (window.runtimeConfig && window.runtimeConfig.API_URL) {
+    return window.runtimeConfig.API_URL;
+  }
   
-  // // Second priority: Environment variable
-  // if (process.env.REACT_APP_API_URL) {
-  //   return process.env.REACT_APP_API_URL;
-  // }
+  // Second priority: Environment variable
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
   
-  // // Third priority: Local storage (user-configured)
-  // const storedApiUrl = localStorage.getItem('apiBaseUrl');
-  // if (storedApiUrl) {
-  //   return storedApiUrl;
-  // }
+  // Third priority: Local storage (user-configured)
+  const storedApiUrl = localStorage.getItem('apiBaseUrl');
+  if (storedApiUrl) {
+    return storedApiUrl;
+  }
   
-  // // Default fallback - use current origin which works when frontend and backend are on same server
-  // return window.location.origin;
-  return 'http://localhost:5000'; // Default for local development
+  // Default fallback - use current origin which works when frontend and backend are on same server
+  return window.location.origin;
+  // return 'http://localhost:5000'; // Default for local development
 };
 
 // Initialize the API config with values from environment variables or localStorage
