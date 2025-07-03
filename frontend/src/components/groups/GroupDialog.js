@@ -19,7 +19,7 @@ import {
   Alert
 } from '@mui/material';
 import groupService from '../../services/groupService';
-import { getUsers as getAllUsersAPICall } from '../../services/userService'; // Renamed to avoid confusion
+import { userApi } from '../../services/api';
 
 const GroupDialog = ({ open, onClose, onSave, groupToEdit }) => {
   const [name, setName] = useState('');
@@ -64,7 +64,7 @@ const GroupDialog = ({ open, onClose, onSave, groupToEdit }) => {
       let fetchedUsersData = []; 
       try {
         // getAllUsersAPICall directly uses API.get, which returns an Axios response object
-        const response = await getAllUsersAPICall(); 
+        const response = await userApi.getAllUsers(); 
         
         // The actual array of users should be in response.data
         if (response && Array.isArray(response.data)) {

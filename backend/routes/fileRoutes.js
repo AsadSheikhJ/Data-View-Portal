@@ -234,11 +234,10 @@ router.get('/', async (req, res) => {
     }
     
     let items = await fs.readdir(absoluteDirPath, { withFileTypes: true });
-    
-    // REMOVE the previous filter that hid restricted directories from the list.
-    // We will now mark them instead.
-    // const filteredItems = items.filter(item => { ... }); 
 
+    // Filter out hidden files and folders (those starting with a dot)
+    items = items.filter(item => !item.name.startsWith('.'));
+    
     const filesList = await Promise.all(items.map(async (item) => {
       const itemRelativePath = path.join(directory, item.name).replace(/\\/g, '/');
       let itemStats; 
@@ -446,13 +445,14 @@ router.put('/rename', async (req, res) => {
     if (isPathRestricted(oldPath, group.restrictedSubDirectories)) {
       return res.status(403).json({ message: 'Cannot rename item in a restricted location.' });
     }
-    const parentDirOfOldPath = path.dirname(oldPath);
-    if (isPathRestricted(path.join(parentDirOfOldPath, newName), group.restrictedSubDirectories)) {
+    const parentDir = path.dirname(oldPath);
+    const newPath = path.join(parentDir, newName);
+    if (isPathRestricted(newPath, group.restrictedSubDirectories)) {
         return res.status(403).json({ message: 'Cannot rename item to a restricted location or name.' });
     }
 
     const absoluteOldPath = path.join(groupBasePath, oldPath);
-    const absoluteNewPath = path.join(groupBasePath, newName);
+    const absoluteNewPath = path.join(groupBasePath, newPath);
     
     if (!fsSync.existsSync(absoluteOldPath)) {
       return res.status(404).json({ message: 'Source not found.' });
@@ -503,23 +503,30 @@ router.get('/group-subdirectories', async (req, res) => {
 
 // Helper function to recursively find all subdirectories
 async function getAllSubdirectoriesRecursive(basePath, currentRelativePath = '') {
-  let allSubdirs = [];
-  try {
-    const items = await fs.readdir(path.join(basePath, currentRelativePath), { withFileTypes: true });
-    for (const item of items) {
-      if (item.isDirectory()) {
-        const subRelativePath = path.join(currentRelativePath, item.name).replace(/\\/g, '/');
-        allSubdirs.push(subRelativePath);
-        const nestedSubdirs = await getAllSubdirectoriesRecursive(basePath, subRelativePath);
-        allSubdirs = allSubdirs.concat(nestedSubdirs);
-      }
+    const fullPath = path.join(basePath, currentRelativePath);
+    let entries;
+    try {
+        entries = await fs.readdir(fullPath, { withFileTypes: true });
+    } catch (error) {
+        // If we can't read a directory (e.g., permissions), we can't find subdirectories in it.
+        console.warn(`Could not read directory ${fullPath}: ${error.message}. Skipping.`);
+        return [];
     }
-  } catch (error) {
-    // Ignore errors for individual directory reads (e.g., permission denied for a specific subdir)
-    // but log them for debugging
-    console.warn(`Warning: Could not read directory ${path.join(basePath, currentRelativePath)} during recursive scan: ${error.message}`);
-  }
-  return allSubdirs;
+
+    const subdirectories = [];
+
+    for (const entry of entries) {
+        // Filter out hidden files and folders
+        if (entry.isDirectory() && !entry.name.startsWith('.')) {
+            const newRelativePath = path.join(currentRelativePath, entry.name).replace(/\\\\/g, '/');
+            subdirectories.push(newRelativePath);
+            // Recursively find more subdirectories
+            const nestedSubdirs = await getAllSubdirectoriesRecursive(basePath, newRelativePath);
+            subdirectories.push(...nestedSubdirs);
+        }
+    }
+
+    return subdirectories;
 }
 
 // Add a new endpoint to get and update directory configuration
