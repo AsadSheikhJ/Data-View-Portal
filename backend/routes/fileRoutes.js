@@ -7,11 +7,12 @@ const multer = require('multer');
 const archiver = require('archiver'); // Add this dependency for zip functionality
 const directoryConfig = require('../config/directoryConfig');
 const { handleFileUploadError } = require('../middleware/errorHandlers'); // Add this import
-
-// Import the auth middleware directly to ensure it's applied
 const authMiddleware = require('../middleware/auth');
-// Import the enhanced permissions middleware
-const { checkPermission, checkSpecificPermission } = require('../middleware/permissions');
+// const { checkPermission, checkSpecificPermission } = require('../middleware/permissions'); // checkSpecificPermission might be unused now
+// const Group = require('../models/Group'); // REMOVED Mongoose Model
+const groupFileService = require('../services/groupFileService'); // ADDED File Service
+const userFileService = require('../services/userFileService'); // For populating user details if needed
+const directoryConfigService = require('../services/directoryConfigService'); // IMPORTANT: For group paths
 
 // Apply auth middleware to ALL routes in this router
 router.use(authMiddleware);
@@ -19,6 +20,110 @@ router.use(authMiddleware);
 // Debug the directory configuration
 console.log('Files directory path:', directoryConfig.filesDir);
 // console.log('Using custom path:', directoryConfig.isUsingCustomPath ? 'Yes' : 'No');
+
+// Centralized helper to get group, validate user, and get group's base path
+// Now checks against req.user.permissions based on requiredPermissionKey
+async function getGroupUserAndPath(groupId, accessingUser, requiredPermissionKey) {
+  if (!groupId) {
+    throw { status: 400, message: 'Group ID is required' };
+  }
+  const group = await groupFileService.getGroupById(groupId);
+  if (!group) {
+    throw { status: 404, message: 'Group not found' };
+  }
+
+  const groupBasePath = await directoryConfigService.getGroupDirectoryPath(groupId);
+  if (!groupBasePath) {
+    throw { status: 400, message: `Directory path for group '${group.name}' is not configured. Please set it in Settings.` };
+  }
+
+  const numericUserId = parseInt(accessingUser.id, 10);
+  if (isNaN(numericUserId)) {
+    throw { status: 400, message: 'Invalid user ID format.' };
+  }
+
+  const userInGroup = group.users.find(u => u.userId === numericUserId);
+  if (!userInGroup) {
+    throw { status: 403, message: 'User not authorized for this group' };
+  }
+
+  if (!accessingUser.permissions) {
+      throw { status: 403, message: 'User permissions not defined.' };
+  }
+
+  // --- Add these debug logs ---
+  console.log(`[Debug FileRoutes] getGroupUserAndPath for user ID ${accessingUser.id}, attempting operation requiring: '${requiredPermissionKey}'`);
+  console.log(`[Debug FileRoutes] Full User Permissions Object (from req.user.permissions):`, JSON.stringify(accessingUser.permissions, null, 2));
+  if (requiredPermissionKey && accessingUser.permissions.hasOwnProperty(requiredPermissionKey)) {
+    console.log(`[Debug FileRoutes] Value of required permission key '${requiredPermissionKey}':`, accessingUser.permissions[requiredPermissionKey]);
+  } else if (requiredPermissionKey) {
+    console.log(`[Debug FileRoutes] Required permission key '${requiredPermissionKey}' is NOT present in user permissions object.`);
+  }
+  // --- End of debug logs ---
+
+  let hasPermission = false;
+  let permissionErrorMessage = 'User does not have sufficient permission for this operation.';
+
+  switch (requiredPermissionKey) {
+    case 'view':
+      if (accessingUser.permissions.view) {
+        hasPermission = true;
+      } else {
+        permissionErrorMessage = 'User does not have permission to view files/directories.';
+      }
+      break;
+    case 'download':
+      if (accessingUser.permissions.download) { // Assuming download implies view or view is checked by client
+        hasPermission = true;
+      } else {
+        permissionErrorMessage = 'User does not have permission to download files.';
+      }
+      break;
+    case 'edit':
+      if (accessingUser.permissions.edit) {
+        hasPermission = true;
+      } else {
+        permissionErrorMessage = 'User does not have permission to modify files/directories.';
+      }
+      break;
+    default:
+      console.warn(`Unknown requiredPermissionKey in getGroupUserAndPath: ${requiredPermissionKey}`);
+      permissionErrorMessage = 'Internal error: Invalid permission key for operation.';
+      // Keep hasPermission = false
+      break;
+  }
+
+  if (!hasPermission) {
+    throw { status: 403, message: permissionErrorMessage };
+  }
+
+  // userInGroup.role from groups.json is not used here for gating file operations
+  return { group, userInGroup, groupBasePath };
+}
+
+// Helper to check if a path is restricted (now handles nested paths)
+function isPathRestricted(relativePath, restrictedSubDirectories) {
+  if (!restrictedSubDirectories || restrictedSubDirectories.length === 0) {
+    return false;
+  }
+  // Normalize relativePath: remove leading/trailing slashes, use forward slashes
+  const normalizedRelativePath = path.normalize(relativePath || '').replace(/^\\?\/|\\?\/$/g, '').replace(/\\/g, '/');
+
+  // Path cannot be empty string for this check, but if it became empty after normalization (e.g. was just "/"
+  // it cannot be a restricted path by name.
+  if (normalizedRelativePath === '') return false;
+
+  for (const restrictedDir of restrictedSubDirectories) {
+    const normalizedRestrictedDir = path.normalize(restrictedDir || '').replace(/^\\?\/|\\?\/$/g, '').replace(/\\/g, '/');
+    if (normalizedRestrictedDir === '') continue; // Skip empty or invalid restricted paths
+
+    // Check for exact match or if relativePath starts with restrictedDir + '/'
+    if (normalizedRelativePath === normalizedRestrictedDir || normalizedRelativePath.startsWith(normalizedRestrictedDir + '/')) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // Ensure directories exist
 async function ensureDirectoryExists(dir) {
@@ -77,27 +182,26 @@ async function ensureDirectoryExists(dir) {
   }
 })();
 
-// Configure multer for file uploads
+// Configure multer for file uploads - NOW GROUP AWARE
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     try {
-      let targetDir;
-      const directory = req.query.directory || '';
-      
-      if (directory) {
-        // If directory is specified, append it to the base path
-        targetDir = path.join(directoryConfig.filesDir, directory);
-      } else {
-        // Otherwise just use the base files directory
-        targetDir = directoryConfig.filesDir;
+      const { groupId, directory = '' } = req.query;
+      // Use 'edit' permission for uploading
+      const { group, groupBasePath } = await getGroupUserAndPath(groupId, req.user, 'edit');
+
+      if (isPathRestricted(directory, group.restrictedSubDirectories)) {
+        return cb(new Error('Upload to this directory is restricted.'));
       }
       
-      console.log(`Upload destination directory: ${targetDir}`);
+      const targetDir = path.join(groupBasePath, directory);
       await ensureDirectoryExists(targetDir);
       cb(null, targetDir);
     } catch (error) {
-      console.error('Multer destination error:', error);
-      cb(error);
+      console.error('Multer destination error:', error.message);
+      const errToSend = error.status && error.message ? new Error(error.message) : new Error('Failed to determine upload destination.');
+      errToSend.status = error.status || 500;
+      cb(errToSend);
     }
   },
   filename: (req, file, cb) => {
@@ -107,255 +211,323 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  limits: { 
+    fileSize: 300 * 1024 * 1024,
+  }
 });
 
-// List files in a directory
+// List files in a directory - NOW GROUP AWARE
 router.get('/', async (req, res) => {
   try {
-    // Reload config to get the latest directory path
-    delete require.cache[require.resolve('../config/directoryConfig')];
-    const directoryConfig = require('../config/directoryConfig');
-    
-    const directory = req.query.directory || '';
-    
-    let dirPath;
-    if (directory) {
-      dirPath = path.join(directoryConfig.filesDir, directory);
-    } else {
-      dirPath = directoryConfig.filesDir;
+    const { groupId, directory = '' } = req.query;
+    const { group, groupBasePath } = await getGroupUserAndPath(groupId, req.user, 'view');
+
+    // This check remains: if the CURRENT directory being listed is restricted, block access.
+    if (isPathRestricted(directory, group.restrictedSubDirectories)) {
+      return res.status(403).json({ message: 'Access to this directory is restricted.' });
+    }
+
+    const absoluteDirPath = path.join(groupBasePath, directory);
+    const stats = await fs.stat(absoluteDirPath);
+    if (!stats.isDirectory()) {
+      return res.status(400).json({ message: 'Specified path is not a directory.' });
     }
     
+    let items = await fs.readdir(absoluteDirPath, { withFileTypes: true });
+
+    // Filter out hidden files and folders (those starting with a dot)
+    items = items.filter(item => !item.name.startsWith('.'));
     
-    try {
-      // Check if directory exists
-      const stats = await fs.stat(dirPath);
-      if (!stats.isDirectory()) {
-        console.error(`Path is not a directory: ${dirPath}`);
-        return res.json([]);
+    const filesList = await Promise.all(items.map(async (item) => {
+      const itemRelativePath = path.join(directory, item.name).replace(/\\/g, '/');
+      let itemStats; 
+      try { itemStats = await fs.stat(path.join(groupBasePath, itemRelativePath)); } 
+      catch (err) { 
+        console.warn(`Could not stat item ${path.join(groupBasePath, itemRelativePath)}: ${err.message}. Using defaults.`);
+        itemStats = { size: 0, mtime: new Date(), isDirectory: () => item.isDirectory() }; 
       }
-      
-      // Read directory contents
-      const items = await fs.readdir(dirPath, { withFileTypes: true });
-      
-      // Generate file objects
-      const filesList = await Promise.all(items.map(async (item) => {
-        const itemPath = path.join(dirPath, item.name);
-        let stats;
-        
-        try {
-          stats = await fs.stat(itemPath);
-        } catch (error) {
-          console.error(`Cannot stat ${itemPath}:`, error);
-          stats = { size: 0, mtime: new Date() };
-        }
-        
-        // Calculate relative path for client
-        let relativePath;
-        if (directory) {
-          relativePath = path.join(directory, item.name).replace(/\\/g, '/');
-        } else {
-          relativePath = item.name;
-        }
-        
-        return {
-          name: item.name,
-          path: relativePath,
-          isDirectory: item.isDirectory(),
-          size: stats.size,
-          modifiedAt: stats.mtime
-        };
-      }));
-      
-      return res.json(filesList);
-    } catch (error) {
-      console.error(`Error reading directory ${dirPath}:`, error);
-      return res.json([]);
-    }
+
+      // Determine if this item, if it's a directory, would be restricted to enter
+      const isItemPotentiallyRestricted = item.isDirectory() && isPathRestricted(itemRelativePath, group.restrictedSubDirectories);
+
+      return {
+        name: item.name,
+        path: itemRelativePath,
+        isDirectory: item.isDirectory(),
+        size: itemStats.size,
+        modifiedAt: itemStats.mtime,
+        isRestricted: isItemPotentiallyRestricted // ADDED THIS PROPERTY
+      };
+    }));
+    return res.json(filesList);
   } catch (error) {
-    console.error('Error in list files route:', error);
-    return res.json([]);
+    console.error('List files error:', error.message);
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    if (error.code === 'ENOENT') return res.status(404).json({ message: 'Directory not found.' });
+    return res.status(500).json({ message: 'Server error while listing files.' });
   }
 });
 
 // Create directory
 router.post('/directory', async (req, res) => {
   try {
-    const { name, path: dirPath } = req.body;
-    
-    if (!name && !dirPath) {
-      return res.status(400).json({ message: 'Directory name or path is required' });
+    const { name, path: dirRelativePath = '', groupId } = req.body;
+    if (!name || name.includes('/') || name.includes('\\') || name.includes('..')) {
+        return res.status(400).json({ message: 'Invalid directory name.' });
     }
+    // Use 'edit' permission for creating directories
+    const { group, groupBasePath } = await getGroupUserAndPath(groupId, req.user, 'edit');
     
-    let targetPath;
-    if (dirPath) {
-      // If path is provided, join with base dir
-      targetPath = path.join(directoryConfig.filesDir, dirPath);
-    } else {
-      // Otherwise just use name
-      targetPath = path.join(directoryConfig.filesDir, name);
+    const fullRelativePath = path.join(dirRelativePath, name);
+    if (isPathRestricted(fullRelativePath, group.restrictedSubDirectories) || isPathRestricted(dirRelativePath, group.restrictedSubDirectories)) {
+      return res.status(403).json({ message: 'Cannot create directory in a restricted location.' });
     }
-    
-    console.log(`Creating directory: ${targetPath}`);
-    
+
+    const targetPath = path.join(groupBasePath, fullRelativePath);
+    if (fsSync.existsSync(targetPath)) {
+        return res.status(409).json({ message: 'Directory already exists.' });
+    }
     await ensureDirectoryExists(targetPath);
-    
-    const relativePath = path.relative(directoryConfig.filesDir, targetPath).replace(/\\/g, '/');
-    return res.json({
-      message: 'Directory created successfully',
-      path: relativePath,
-      name: path.basename(targetPath)
-    });
+    return res.json({ message: 'Directory created.', path: fullRelativePath.replace(/\\/g, '/'), name, groupId });
   } catch (error) {
-    console.error('Error creating directory:', error);
-    return res.status(500).json({ 
-      message: 'Failed to create directory',
-      error: error.message 
-    });
+    console.error('Create directory error:', error.message);
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    return res.status(500).json({ message: 'Failed to create directory.' });
   }
 });
 
-// Upload file
-router.post('/upload', 
-  upload.single('file'), 
-  handleFileUploadError, // Now properly imported
-  (req, res) => {
-    // Handle successful upload
-    res.json({ 
-      message: 'File uploaded successfully',
-      file: req.file 
-    });
+// Upload multiple files
+router.post('/upload', upload.array('files', 50), handleFileUploadError, async (req, res) => {
+  // Permission is already checked by multer's storage destination function using getGroupUserAndPath with 'edit'
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ message: 'No files uploaded.' });
   }
-);
+  res.status(200).json({ message: 'Files uploaded successfully!', count: req.files.length, files: req.files.map(f => f.originalname) });
+});
 
-// Download file
-router.get('/download/:filePath(*)', checkSpecificPermission('download'), async (req, res) => {
+// Download a file
+router.get('/download/:filePath(*)', async (req, res) => {
   try {
-    const basePath = directoryConfig.customDirectoryPath || directoryConfig.filesDir;
-    const filePath = path.join(basePath, req.params.filePath);
-    
-    console.log(`Downloading file: ${filePath}`);
-    
-    // Check if file exists
-    await fs.access(filePath);
-    res.download(filePath);
+    const filePath = req.params.filePath;
+    const { groupId } = req.query;
+    // Use 'download' permission for downloading files
+    const { group, groupBasePath } = await getGroupUserAndPath(groupId, req.user, 'download');
+
+    if (isPathRestricted(filePath, group.restrictedSubDirectories)) {
+      return res.status(403).json({ message: 'Access to this file is restricted.' });
+    }
+
+    const absoluteFilePath = path.join(groupBasePath, filePath);
+    await fs.access(absoluteFilePath); // Check if file exists and is accessible
+    const fileStats = await fs.stat(absoluteFilePath);
+    if (fileStats.isDirectory()) {
+        return res.status(400).json({ message: 'Path is a directory, not a file.'});
+    }
+
+    if (!fsSync.existsSync(absoluteFilePath) || !fsSync.statSync(absoluteFilePath).isFile()) {
+        return res.status(404).json({ message: 'File not found or is not a file.' });
+    }
+    res.download(absoluteFilePath, path.basename(absoluteFilePath), (err) => {
+      if (err) {
+        console.error("Download error:", err);
+        // Avoid sending another response if headers already sent (e.g., by res.download itself on error)
+        if (!res.headersSent) {
+            // Check for specific errors if needed, e.g., access errors
+            if (err.code === 'ECONNABORTED' || err.code === 'ERR_STREAM_PREMATURE_CLOSE') {
+                // These might indicate client closed connection, less of a server error
+                console.warn('Client aborted download or stream closed prematurely for:', filePath);
+            } else {
+                res.status(500).send('Error during file download.');
+            }
+        }
+      }
+    });
   } catch (error) {
-    console.error('Error downloading file:', error);
-    res.status(404).json({ message: 'File not found' });
+    console.error('Download file error:', error.message);
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    if (error.code === 'ENOENT') return res.status(404).json({ message: 'File path not found.' });
+    return res.status(500).json({ message: 'Server error while downloading file.' });
   }
 });
 
-// Download a folder as zip
-router.get('/download-folder/:folderPath(*)', checkSpecificPermission('download'), async (req, res) => {
+// Download a folder as a zip
+router.get('/download-folder/:folderPath(*)', async (req, res) => {
+  const folderPath = req.params.folderPath;
+  const { groupId } = req.query;
   try {
-    const folderPath = req.params.folderPath;
-    const sourcePath = path.join(directoryConfig.filesDir, folderPath);
+    // Use 'download' permission for downloading folders
+    const { group, groupBasePath } = await getGroupUserAndPath(groupId, req.user, 'download');
     
-    console.log(`Preparing to zip folder: ${sourcePath}`);
-    
-    // Verify folder exists
-    const stats = await fs.stat(sourcePath);
+    const absoluteFolderPath = path.join(groupBasePath, folderPath);
+
+    if (isPathRestricted(folderPath, group.restrictedSubDirectories)) {
+      return res.status(403).json({ message: 'Access to this folder is restricted.' });
+    }
+
+    const stats = await fs.stat(absoluteFolderPath);
     if (!stats.isDirectory()) {
-      return res.status(400).json({ message: 'Specified path is not a directory' });
+      return res.status(400).json({ message: 'Path is not a directory.' });
     }
     
-    // Set up the response
-    const folderName = path.basename(sourcePath);
+    const folderName = folderPath ? path.basename(folderPath) : group.name || 'archive';
     res.attachment(`${folderName}.zip`);
-    res.setHeader('Content-Type', 'application/zip');
-    
-    // Create zip archive
-    const archive = archiver('zip', {
-      zlib: { level: 5 } // Compression level
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.on('error', function(err) {
+      console.error('Archiver error:', err);
+      if (!res.headersSent) {
+        res.status(500).send({ error: 'Failed to create archive.', details: err.message });
+      }
     });
-    
-    // Pipe archive to response
+    archive.on('warning', function(err) {
+      if (err.code === 'ENOENT') {
+        console.warn('Archiver warning (ENOENT):', err);
+      } else {
+        console.warn('Archiver warning:', err);
+      }
+    });
+
+    res.attachment(`${path.basename(folderPath) || 'archive'}.zip`);
     archive.pipe(res);
-    
-    // Add folder to archive
-    archive.directory(sourcePath, false);
-    
-    // Finalize archive
+    archive.directory(absoluteFolderPath, false);
     await archive.finalize();
-    
-    console.log(`Folder "${folderName}" zipped and sent successfully`);
+
   } catch (error) {
-    console.error('Error zipping folder:', error);
-    res.status(500).json({
-      message: 'Error downloading folder',
-      error: error.message
-    });
+    console.error(`Error downloading folder ${folderPath}:`, error.message);
+    if (!res.headersSent) {
+        if (error.status) return res.status(error.status).json({ message: error.message });
+        if (error.code === 'ENOENT') return res.status(404).json({ message: 'Folder not found.' });
+        return res.status(500).json({ message: 'Server error while downloading folder.' });
+    }
+  }
+});
+
+// Delete a file or directory
+router.delete('/:filePath(*)', async (req, res) => {
+  try {
+    const filePath = req.params.filePath;
+    const { groupId } = req.query;
+    // Use 'edit' permission for deleting
+    const { group, groupBasePath } = await getGroupUserAndPath(groupId, req.user, 'edit');
+
+    if (isPathRestricted(filePath, group.restrictedSubDirectories)) {
+      return res.status(403).json({ message: 'Deletion in this location is restricted.' });
+    }
+
+    const absoluteFilePath = path.join(groupBasePath, filePath);
+    // console.log(`Attempting to delete item: ${absoluteFilePath} for group ${group.name}`);
+    
+    const stats = await fs.stat(absoluteFilePath);
+    if (stats.isDirectory()) {
+      await fs.rm(absoluteFilePath, { recursive: true, force: true });
+    } else {
+      await fs.unlink(absoluteFilePath);
+    }
+    
+    res.json({ message: `${stats.isDirectory() ? 'Directory' : 'File'} deleted.` });
+  } catch (error) {
+    console.error('Delete item error:', error.message);
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    if (error.code === 'ENOENT') return res.status(404).json({ message: 'Item not found.' });
+    res.status(500).json({ message: 'Server error while deleting item.' });
   }
 });
 
 // Rename a file or folder
-router.put('/rename', checkSpecificPermission('edit'), async (req, res) => {
+router.put('/rename', async (req, res) => {
   try {
-    const { oldPath, newName } = req.body;
-    
-    if (!oldPath || !newName) {
-      return res.status(400).json({ message: 'Old path and new name are required' });
+    const { oldPath, newName, groupId } = req.body;
+    if (!oldPath || !newName || newName.includes('/') || newName.includes('\\') || newName.includes('..')) {
+      return res.status(400).json({ message: 'Invalid old path or new name.' });
     }
-    
-    console.log(`Renaming: ${oldPath} to ${newName}`);
-    
-    const sourcePath = path.join(directoryConfig.filesDir, oldPath);
-    const parentDir = path.dirname(sourcePath);
+    // Use 'edit' permission for renaming
+    const { group, groupBasePath } = await getGroupUserAndPath(groupId, req.user, 'edit');
+
+    if (isPathRestricted(oldPath, group.restrictedSubDirectories)) {
+      return res.status(403).json({ message: 'Cannot rename item in a restricted location.' });
+    }
+    const parentDir = path.dirname(oldPath);
     const newPath = path.join(parentDir, newName);
+    if (isPathRestricted(newPath, group.restrictedSubDirectories)) {
+        return res.status(403).json({ message: 'Cannot rename item to a restricted location or name.' });
+    }
+
+    const absoluteOldPath = path.join(groupBasePath, oldPath);
+    const absoluteNewPath = path.join(groupBasePath, newPath);
     
-    // Check if source exists
-    if (!fsSync.existsSync(sourcePath)) {
-      return res.status(404).json({ message: 'Source file or directory not found' });
+    if (!fsSync.existsSync(absoluteOldPath)) {
+      return res.status(404).json({ message: 'Source not found.' });
+    }
+    if (fsSync.existsSync(absoluteNewPath)) {
+      return res.status(409).json({ message: 'Target name already exists.' });
     }
     
-    // Check if destination already exists
-    if (fsSync.existsSync(newPath)) {
-      return res.status(409).json({ message: 'A file or directory with this name already exists' });
-    }
+    await fs.rename(absoluteOldPath, absoluteNewPath);
     
-    // Perform rename
-    await fs.rename(sourcePath, newPath);
+    const newPathRelative = path.relative(groupBasePath, absoluteNewPath).replace(/\\/g, '/');
     
-    const relativePath = path.relative(directoryConfig.filesDir, newPath).replace(/\\/g, '/');
-    
-    res.json({
-      message: 'Rename successful',
-      oldPath,
-      newPath: relativePath,
-      name: newName
-    });
+    res.json({ message: 'Rename successful.', oldPath: oldPath, newPath: newPathRelative, name: newName });
   } catch (error) {
-    console.error('Error renaming item:', error);
-    res.status(500).json({
-      message: 'Error renaming item',
-      error: error.message
-    });
+    console.error('Rename item error:', error.message);
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    if (error.code === 'ENOENT') return res.status(404).json({ message: 'Item not found.' });
+    res.status(500).json({ message: 'Server error while renaming item.' });
   }
 });
 
-// Delete file/directory
-router.delete('/:filePath(*)', checkSpecificPermission('edit'), async (req, res) => {
+// GET group-specific subdirectories (for restriction UI)
+// This route is special: it should be callable by an admin user (who might not be in the group)
+// OR by a group member with sufficient rights to see the structure.
+// For now, let's assume an admin role is sufficient globally, or a group member for their own group.
+router.get('/group-subdirectories', async (req, res) => {
+// ... (this route's permission logic might need separate review if it's not just for group members) ...
+// For now, keeping its existing permission logic for consistency,
+// assuming 'view' is what it implies for a group member.
+// If an admin needs to see this for ANY group, that's a different check.
   try {
-    const basePath = directoryConfig.customDirectoryPath || directoryConfig.filesDir;
-    const filePath = path.join(basePath, req.params.filePath);
-    
-    console.log(`Deleting item: ${filePath}`);
-    
-    // Check if path exists
-    const stats = await fs.stat(filePath);
-    
-    if (stats.isDirectory()) {
-      await fs.rm(filePath, { recursive: true, force: true });
-    } else {
-      await fs.unlink(filePath);
+    const { groupId } = req.query;
+    if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: 'User authentication required.'});
     }
+    // Let's use 'view' permission to see subdirectories of a group one belongs to.
+    // Admins might have broader access, but this route primarily serves group members for restriction setup context.
+    const { group, groupBasePath } = await getGroupUserAndPath(groupId, req.user, 'view');
     
-    res.json({ message: `${stats.isDirectory() ? 'Directory' : 'File'} deleted successfully` });
+    const subdirectories = await getAllSubdirectoriesRecursive(groupBasePath);
+    res.json(subdirectories);
   } catch (error) {
-    console.error('Error deleting item:', error);
-    res.status(500).json({ message: 'Error deleting item' });
+    console.error('Error fetching group subdirectories:', error);
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    return res.status(500).json({ message: 'Failed to fetch group subdirectories.' });
   }
 });
+
+// Helper function to recursively find all subdirectories
+async function getAllSubdirectoriesRecursive(basePath, currentRelativePath = '') {
+    const fullPath = path.join(basePath, currentRelativePath);
+    let entries;
+    try {
+        entries = await fs.readdir(fullPath, { withFileTypes: true });
+    } catch (error) {
+        // If we can't read a directory (e.g., permissions), we can't find subdirectories in it.
+        console.warn(`Could not read directory ${fullPath}: ${error.message}. Skipping.`);
+        return [];
+    }
+
+    const subdirectories = [];
+
+    for (const entry of entries) {
+        // Filter out hidden files and folders
+        if (entry.isDirectory() && !entry.name.startsWith('.')) {
+            const newRelativePath = path.join(currentRelativePath, entry.name).replace(/\\\\/g, '/');
+            subdirectories.push(newRelativePath);
+            // Recursively find more subdirectories
+            const nestedSubdirs = await getAllSubdirectoriesRecursive(basePath, newRelativePath);
+            subdirectories.push(...nestedSubdirs);
+        }
+    }
+
+    return subdirectories;
+}
 
 // Add a new endpoint to get and update directory configuration
 router.get('/config', async (req, res) => {

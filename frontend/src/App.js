@@ -1,12 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
+import { CssBaseline, ThemeProvider, createTheme, Container, CircularProgress, Box } from '@mui/material';
 import Login from './components/Login';
 import Register from './components/Register';
 import Dashboard from './components/Dashboard';
 import Settings from './components/Settings';
 import NotFound from './components/NotFound';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import GroupManagementPage from './components/AdminPanel/GroupManagementPage';
+import { NotificationProvider } from './contexts/NotificationContext';
+
 
 // Create theme with enhanced aesthetics
 const useCustomTheme = (mode) => {
@@ -188,20 +191,29 @@ const useCustomTheme = (mode) => {
 };
 
 // Protected Route component
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+const ProtectedRoute = ({ children, adminOnly = false }) => {
+  const { user, isAuthenticated, loading } = useAuth();
   
   // If auth is still loading, you might want to show a loading spinner
   if (loading) {
-    return <div>Loading...</div>;
+    return <Container sx={{ display: 'flex', justifyContent: 'center', mt: 5 }}><CircularProgress /></Container>;
   }
   
   // If not authenticated, redirect to login
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+
+  // If adminOnly is true, check for admin role
+  if (adminOnly && (!user || user.role !== 'admin')) {
+    // User is authenticated but not an admin
+    // Redirect to dashboard or a specific unauthorized page
+    // For now, redirecting to dashboard, but an unauthorized page might be better UX
+    return <Navigate to="/dashboard" replace />;
+    // Or: return <Navigate to="/unauthorized" replace />;
+  }
   
-  // If authenticated, render the protected component
+  // If authenticated (and admin if adminOnly), render the protected component
   return children;
 };
 
@@ -221,7 +233,7 @@ const PublicRoute = ({ children }) => {
 };
 
 function AppContent() {
-  // Use localStorage to remember theme preference, default to 'light' if not set
+  const { isAuthenticated, loading } = useAuth(); // Get auth state here
   const [mode, setMode] = useState(() => {
     const savedMode = localStorage.getItem('themeMode');
     return savedMode ? savedMode : 'light';
@@ -232,38 +244,57 @@ function AppContent() {
   const toggleColorMode = () => {
     setMode((prevMode) => {
       const newMode = prevMode === 'light' ? 'dark' : 'light';
-      // Save to localStorage
       localStorage.setItem('themeMode', newMode);
       return newMode;
     });
   };
-  
+
+  // Handle loading state for root redirect
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Router>
         <Routes>
-          <Route path="/login" element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          } />
-          <Route path="/register" element={
-            <PublicRoute>
-              <Register />
-            </PublicRoute>
-          } />
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <Dashboard colorMode={{ mode, toggleColorMode }} />
-            </ProtectedRoute>
-          } />
-          <Route path="/settings" element={
-            <ProtectedRoute>
-              <Settings colorMode={{ mode, toggleColorMode }} />
-            </ProtectedRoute>
-          } />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {/* Root path redirect based on auth state */}
+          <Route 
+            path="/"
+            element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
+          />
+
+          {/* Existing public routes like /login, /register */}
+          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+
+          {/* Existing protected routes like /dashboard, /settings */}
+          <Route
+            path="/dashboard"
+            element={<ProtectedRoute><Dashboard darkMode={mode} toggleDarkMode={toggleColorMode} /></ProtectedRoute>}
+          />
+          <Route
+            path="/settings"
+            element={<ProtectedRoute><Settings darkMode={mode} setDarkMode={toggleColorMode} /></ProtectedRoute>}
+          />
+
+          {/* === ADD THIS SECTION FOR GROUP MANAGEMENT === */}
+          <Route
+            path="/admin/groups"
+            element={
+              <ProtectedRoute adminOnly={true}>
+                <GroupManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* ========================================== */}
+
+          {/* Catch-all or Not Found Route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
@@ -274,7 +305,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <NotificationProvider>
+        <AppContent />
+      </NotificationProvider>
     </AuthProvider>
   );
 }

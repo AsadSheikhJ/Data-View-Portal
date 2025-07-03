@@ -1,7 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
-const Navbar = ({ user }) => {
+const Navbar = () => {
+  const { user } = useAuth();
+
   return (
     <nav>
       <ul>
@@ -16,11 +19,18 @@ const Navbar = ({ user }) => {
           </Link>
         </li>
         {user?.role === 'admin' && (
-          <li>
-            <Link to="/admin/users" className="nav-link">
-              User Management
-            </Link>
-          </li>
+          <>
+            <li>
+              <Link to="/admin/users" className="nav-link">
+                User Management
+              </Link>
+            </li>
+            <li>
+              <Link to="/admin/groups" className="nav-link">
+                Group Management
+              </Link>
+            </li>
+          </>
         )}
       </ul>
     </nav>

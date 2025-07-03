@@ -3,7 +3,8 @@ import {
   Box, Typography, Paper, List, ListItem, ListItemIcon, ListItemText,
   IconButton, Button, Divider, TextField, Dialog, DialogTitle,
   DialogContent, DialogActions, Menu, MenuItem, CircularProgress,
-  Breadcrumbs, Link, Tooltip, Snackbar, Alert
+  Breadcrumbs, Link, Tooltip, Snackbar, Alert, LinearProgress,
+  FormControl, InputLabel, Select
 } from '@mui/material';
 import {
   Folder as FolderIcon,
@@ -16,7 +17,8 @@ import {
   NavigateNext as NavigateNextIcon,
   ArrowBack as ArrowBackIcon,
   Edit as EditIcon,
-  Archive as ArchiveIcon
+  Archive as ArchiveIcon,
+  Block as BlockIcon
 } from '@mui/icons-material';
 import fileService from '../services/fileService';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,7 +32,9 @@ const FileBrowser = () => {
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [contextMenu, setContextMenu] = useState(null);
-  const [fileToUpload, setFileToUpload] = useState(null);
+  const [filesToUpload, setFilesToUpload] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [isUploading, setIsUploading] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -44,46 +48,95 @@ const FileBrowser = () => {
   const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
 
+  // Group state
+  const [groups, setGroups] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [loadingGroups, setLoadingGroups] = useState(true);
+
   const { user } = useAuth();
   // Safely access permissions with default values if user or permissions is undefined
   const canEdit = user?.permissions?.edit || false;
   const canDownload = user?.permissions?.download || false;
 
-  // Define loadFiles as a callback to avoid recreation on each render
+  // Fetch user's groups
+  useEffect(() => {
+    const fetchUserGroups = async () => {
+      setLoadingGroups(true);
+      try {
+        const response = await fileService.api.get('/api/groups/my-groups');
+        const fetchedGroups = response.data || [];
+        setGroups(fetchedGroups);
+        if (fetchedGroups.length > 0) {
+          // Ensure group objects have an 'id' property as expected by the rest of the component
+          // If they already do, this won't change anything.
+          // If they have '_id' from a previous mongo setup, this ensures selectedGroup.id works.
+          const firstGroup = fetchedGroups[0];
+          setSelectedGroup({ ...firstGroup, id: firstGroup.id || firstGroup._id }); 
+        } else {
+          setSelectedGroup(null);
+        }
+      } catch (err) {
+        console.error('Error fetching user groups:', err);
+        setError('Failed to load your groups/projects.');
+        setGroups([]);
+        setSelectedGroup(null);
+      } finally {
+        setLoadingGroups(false);
+      }
+    };
+    fetchUserGroups();
+  }, []);
+
+  const handleGroupChange = (event) => {
+    const groupId = event.target.value;
+    const group = groups.find(g => (g.id || g._id) === groupId); // Check both id and _id for robustness during transition
+    setSelectedGroup(group);
+    setCurrentPath(''); 
+    setFiles([]); 
+    setError(null);
+  };
+
   const loadFiles = useCallback(async () => {
+    if (!selectedGroup || !(selectedGroup.id || selectedGroup._id) ) { // Ensure selectedGroup and its ID are present
+      setFiles([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const data = await fileService.listFiles(currentPath);
-      
-      // Ensure data is an array
-      const filesArray = Array.isArray(data) ? data : [];
-      // console.log(`Loaded ${filesArray.length} files/directories`);
-      
-      // Sort: directories first, then files
-      const sortedFiles = filesArray.sort((a, b) => {
+      // Use selectedGroup.id (preferable) or fallback to selectedGroup._id if necessary
+      const groupIdToUse = selectedGroup.id || selectedGroup._id;
+      const data = await fileService.listFiles(currentPath, groupIdToUse);
+      const sortedFiles = (Array.isArray(data) ? data : []).sort((a, b) => {
         if (a.isDirectory && !b.isDirectory) return -1;
         if (!a.isDirectory && b.isDirectory) return 1;
         return a.name.localeCompare(b.name);
       });
-      
       setFiles(sortedFiles);
     } catch (err) {
-      console.error('Error loading files:', err);
-      setError('Failed to load files. Please try again.');
+      console.error('Error loading files for group:', err);
+      setError(`Failed to load files for ${selectedGroup.name}.`);
       setFiles([]);
     } finally {
       setLoading(false);
     }
-  }, [currentPath]);
+  }, [currentPath, selectedGroup]);
 
-  // Load files when path changes
   useEffect(() => {
     loadFiles();
-  }, [loadFiles]);
+  }, [loadFiles]); // selectedGroup is a dep of loadFiles callback
 
   const handleFileClick = (file) => {
     if (file.isDirectory) {
+      if (file.isRestricted) {
+        setSnackbar({
+          open: true,
+          message: 'Access to this folder is restricted.',
+          severity: 'warning',
+        });
+        return;
+      }
       setCurrentPath(file.path);
     } else if (canDownload) {
       handleDownloadFile(file);
@@ -115,34 +168,49 @@ const FileBrowser = () => {
 
   const handleUploadClose = () => {
     setUploadDialogOpen(false);
+    setFilesToUpload([]);
+    setUploadProgress({});
+    setIsUploading(false);
   };
 
   const handleFileInputChange = (event) => {
-    setFileToUpload(event.target.files[0]);
+    const selectedFiles = Array.from(event.target.files);
+    setFilesToUpload(selectedFiles);
+    const initialProgress = {};
+    selectedFiles.forEach(file => {
+      initialProgress[file.name] = 0;
+    });
+    setUploadProgress(initialProgress);
   };
 
-  const handleUploadFile = async () => {
-    if (!fileToUpload) return;
-
+  const handleUploadFiles = async () => {
+    if (!filesToUpload || filesToUpload.length === 0 || !selectedGroup || !(selectedGroup.id || selectedGroup._id)) return;
+    setIsUploading(true);
+    setUploadProgress({ overall: 0 });
     try {
-      setLoading(true);
-      await fileService.uploadFile(fileToUpload, currentPath);
+      const groupIdToUse = selectedGroup.id || selectedGroup._id;
+      await fileService.uploadMultipleFilesWithProgress(filesToUpload, currentPath, groupIdToUse, (percent) => setUploadProgress({ overall: percent }));
+      setIsUploading(false);
       setUploadDialogOpen(false);
-      loadFiles(); // Now loadFiles is defined
+      setFilesToUpload([]);
+      setUploadProgress({});
+      loadFiles();
       setSnackbar({
         open: true,
-        message: 'File uploaded successfully',
+        message: 'Files uploaded successfully',
         severity: 'success'
       });
     } catch (err) {
-      setError('Failed to upload file: ' + (err.message || 'Unknown error'));
+      setIsUploading(false);
+      const newProgress = {};
+      filesToUpload.forEach(f => newProgress[f.name] = 0);
+      setUploadProgress(newProgress);
+      setError('Failed to upload files: ' + (err.response?.data?.message || err.message || 'Unknown error'));
       setSnackbar({
         open: true,
-        message: 'File upload failed',
+        message: err.response?.data?.message || 'File upload failed',
         severity: 'error'
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -155,47 +223,49 @@ const FileBrowser = () => {
   };
 
   const handleCreateFolder = async () => {
-    if (!newFolderName.trim()) return;
-
+    if (!newFolderName.trim() || !selectedGroup || !(selectedGroup.id || selectedGroup._id)) return;
     try {
-      setLoading(true);
-      await fileService.createDirectory(currentPath, newFolderName);
+      const groupIdToUse = selectedGroup.id || selectedGroup._id;
+      await fileService.createDirectory(currentPath, newFolderName, groupIdToUse);
       setNewFolderDialogOpen(false);
       setNewFolderName('');
-      loadFiles(); // Now loadFiles is defined
+      loadFiles();
       setSnackbar({
         open: true,
         message: 'Folder created successfully',
         severity: 'success'
       });
     } catch (err) {
-      setError('Failed to create folder: ' + (err.message || 'Unknown error'));
+      setError('Failed to create folder: ' + (err.response?.data?.message || err.message || 'Unknown error'));
       setSnackbar({
         open: true,
         message: 'Failed to create folder',
         severity: 'error'
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleDownloadFile = async (file) => {
-    if (!canDownload) {
-      setSnackbar({
-        open: true,
-        message: "You don't have permission to download files",
-        severity: 'error'
-      });
-      return;
-    }
-
+    if (!canDownload || !selectedGroup || !(selectedGroup.id || selectedGroup._id)) return;
     try {
-      await fileService.downloadFile(file.path);
+      const groupIdToUse = selectedGroup.id || selectedGroup._id;
+      await fileService.downloadFile(file.path, groupIdToUse);
     } catch (err) {
+      let displayMessage = 'Failed to download file.';
+      if (err.response) {
+        if (err.response.data && err.response.data.message) {
+          displayMessage = err.response.data.message;
+        } else if (err.response.status === 403) {
+          displayMessage = 'Access to this file is restricted.';
+        } else {
+          displayMessage = `Error: ${err.response.statusText || err.message}`;
+        }
+      } else if (err.message) {
+        displayMessage = err.message;
+      }
       setSnackbar({
         open: true,
-        message: err.message || 'Failed to download file',
+        message: displayMessage,
         severity: 'error'
       });
     }
@@ -205,8 +275,16 @@ const FileBrowser = () => {
     if (event) {
       event.stopPropagation();
     }
+    if (folder.isRestricted) {
+      setSnackbar({
+        open: true,
+        message: 'Access to this folder is restricted and it cannot be downloaded.',
+        severity: 'error'
+      });
+      return;
+    }
 
-    if (!canDownload) {
+    if (!canDownload || !selectedGroup || !(selectedGroup.id || selectedGroup._id)) {
       setSnackbar({
         open: true,
         message: "You don't have permission to download folders",
@@ -216,43 +294,52 @@ const FileBrowser = () => {
     }
     
     try {
-      setLoading(true);
-      await fileService.downloadFolder(folder.path);
+      const groupIdToUse = selectedGroup.id || selectedGroup._id;
+      await fileService.downloadFolder(folder.path, groupIdToUse);
       setSnackbar({
         open: true,
-        message: 'Folder download started',
+        message: 'Folder download started.',
         severity: 'success'
       });
     } catch (err) {
+      let displayMessage = 'Failed to download folder.';
+      if (err.response) {
+        if (err.response.data && err.response.data.message) {
+          displayMessage = err.response.data.message;
+        } else if (err.response.status === 403) {
+          displayMessage = 'Access to this folder is restricted.';
+        } else {
+          displayMessage = `Error: ${err.response.statusText || err.message}`;
+        }
+      } else if (err.message) {
+        displayMessage = err.message;
+      }
       setSnackbar({
         open: true,
-        message: err.message || 'Failed to download folder',
+        message: displayMessage,
         severity: 'error'
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleDeleteFile = async (file) => {
+    if (!file || !selectedGroup || !(selectedGroup.id || selectedGroup._id)) return;
     try {
-      setLoading(true);
-      await fileService.deleteItem(file.path);
-      loadFiles(); // Now loadFiles is defined
+      const groupIdToUse = selectedGroup.id || selectedGroup._id;
+      await fileService.deleteItem(file.path, groupIdToUse);
+      loadFiles();
       setSnackbar({
         open: true,
         message: 'Item deleted successfully',
         severity: 'success'
       });
     } catch (err) {
-      setError('Failed to delete: ' + (err.message || 'Unknown error'));
+      setError('Failed to delete: ' + (err.response?.data?.message || err.message || 'Unknown error'));
       setSnackbar({
         open: true,
         message: 'Delete operation failed',
         severity: 'error'
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -297,27 +384,25 @@ const FileBrowser = () => {
   };
 
   const handleRename = async () => {
-    if (!itemToRename || !newName.trim()) return;
+    if (!itemToRename || !newName.trim() || !selectedGroup || !(selectedGroup.id || selectedGroup._id)) return;
     
     try {
-      setLoading(true);
-      await fileService.renameItem(itemToRename.path, newName);
+      const groupIdToUse = selectedGroup.id || selectedGroup._id;
+      await fileService.renameItem(itemToRename.path, newName, groupIdToUse);
       loadFiles();
-      setRenameDialogOpen(false);
+      handleRenameClose();
       setSnackbar({
         open: true,
         message: 'Item renamed successfully',
         severity: 'success'
       });
     } catch (err) {
-      setError(`Failed to rename: ${err.message || 'Unknown error'}`);
+      setError(`Failed to rename: ${err.response?.data?.message || err.message || 'Unknown error'}`);
       setSnackbar({
         open: true,
         message: 'Failed to rename item',
         severity: 'error'
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -350,11 +435,11 @@ const FileBrowser = () => {
 
   // Handle delete confirmation
   const handleDeleteConfirm = async () => {
-    if (!itemToDelete) return;
+    if (!itemToDelete || !selectedGroup || !(selectedGroup.id || selectedGroup._id)) return;
 
     try {
-      setLoading(true);
-      await fileService.deleteItem(itemToDelete.path);
+      const groupIdToUse = selectedGroup.id || selectedGroup._id;
+      await fileService.deleteItem(itemToDelete.path, groupIdToUse);
       loadFiles();
       setDeleteConfirmOpen(false);
       setItemToDelete(null);
@@ -370,14 +455,13 @@ const FileBrowser = () => {
         message: 'Delete operation failed',
         severity: 'error'
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   const renderBreadcrumbs = () => {
     const normalizedPath = currentPath.replace(/\\/g, '/');
     const paths = normalizedPath ? normalizedPath.split('/') : [];
+    const groupName = selectedGroup ? selectedGroup.name : (loadingGroups ? 'Loading groups...' : 'No group selected');
 
     return (
       <Breadcrumbs aria-label="breadcrumb">
@@ -386,8 +470,9 @@ const FileBrowser = () => {
           underline="hover"
           color="inherit"
           onClick={() => setCurrentPath('')}
+          disabled={!selectedGroup}
         >
-          Home
+          {groupName}
         </Link>
         {paths.map((item, index) => (
           <Link
@@ -396,6 +481,7 @@ const FileBrowser = () => {
             underline="hover"
             color="inherit"
             onClick={() => handleNavigateToBreadcrumb(index)}
+            disabled={!selectedGroup}
           >
             {item}
           </Link>
@@ -424,16 +510,43 @@ const FileBrowser = () => {
           flexWrap: 'wrap',
           gap: 1
         }}>
-          <Typography 
-            variant="h6" 
-            sx={{ 
-              fontSize: { xs: '1rem', sm: '1.1rem' },
-              fontWeight: 600,
-              color: theme => theme.palette.text.primary
-            }}
-          >
-            Files
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                fontSize: { xs: '1rem', sm: '1.1rem' },
+                fontWeight: 600,
+                color: theme => theme.palette.text.primary
+              }}
+            >
+              Files
+            </Typography>
+            
+            {/* Group Selector */}
+            {loadingGroups ? (
+              <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary', ml: 1 }}>Loading groups...</Typography>
+            ) : groups.length > 0 ? (
+              <FormControl size="small" sx={{ minWidth: { xs: 130, sm: 180 }, maxWidth: { xs: 'calc(100% - 70px)', sm: 250 }, ml:1 }}>
+                <InputLabel id="group-select-label">Project/Group</InputLabel>
+                <Select
+                  labelId="group-select-label"
+                  id="group-select"
+                  value={selectedGroup ? (selectedGroup.id || selectedGroup._id) : ''}
+                  label="Project/Group"
+                  onChange={handleGroupChange}
+                  sx={{ borderRadius: 2, '.MuiSelect-select': { fontSize: '0.875rem' } }}
+                >
+                  {groups.map((group) => (
+                    <MenuItem key={group.id || group._id} value={group.id || group._id} sx={{ fontSize: '0.875rem' }}>
+                      {group.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            ) : user ? ( 
+              <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary', ml: 1 }}>No groups assigned.</Typography>
+            ) : null}
+          </Box>
           
           <Box sx={{ display: 'flex', gap: 1 }}>
             {canEdit && (
@@ -448,6 +561,7 @@ const FileBrowser = () => {
                     textTransform: 'none',
                     fontWeight: 500
                   }}
+                  disabled={!selectedGroup || !canEdit}
                 >
                   New Folder
                 </Button>
@@ -461,6 +575,7 @@ const FileBrowser = () => {
                     textTransform: 'none',
                     fontWeight: 500
                   }}
+                  disabled={!selectedGroup || !canEdit}
                 >
                   Upload
                 </Button>
@@ -479,7 +594,7 @@ const FileBrowser = () => {
           p: 1,
           overflowX: 'auto'
         }}>
-          {currentPath && (
+          {selectedGroup && currentPath && (
             <Tooltip title="Go back">
               <IconButton 
                 onClick={handleNavigateBack} 
@@ -533,6 +648,8 @@ const FileBrowser = () => {
               {error}
             </Typography>
           </Box>
+        ) : !selectedGroup ? (
+          <Typography>Please select a group/project to view files.</Typography>
         ) : (
           <List 
             sx={{ 
@@ -550,16 +667,19 @@ const FileBrowser = () => {
                   key={file.path || Math.random()}
                   component="div"
                   sx={{ 
-                    cursor: 'pointer',
+                    cursor: (file.isDirectory && file.isRestricted) ? 'not-allowed' : 'pointer',
                     py: 0.75,
                     px: 1,
                     borderRadius: 1,
                     mb: 0.5,
                     bgcolor: 'background.paper',
+                    opacity: (file.isDirectory && file.isRestricted) ? 0.6 : 1,
                     '&:hover': {
-                      bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+                      bgcolor: (file.isDirectory && file.isRestricted) 
+                        ? 'background.paper' 
+                        : (theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'),
                     },
-                    transition: 'background-color 0.2s',
+                    transition: 'background-color 0.2s, opacity 0.2s',
                     border: '1px solid',
                     borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
                   }}
@@ -568,7 +688,10 @@ const FileBrowser = () => {
                 >
                   <ListItemIcon sx={{ minWidth: { xs: 36, sm: 42 } }}>
                     {file.isDirectory ? 
-                      <FolderIcon color="primary" fontSize="small" /> : 
+                      (file.isRestricted ? 
+                        <Tooltip title="Restricted Folder"><BlockIcon color="disabled" fontSize="small" /></Tooltip> : 
+                        <FolderIcon color="primary" fontSize="small" />
+                      ) : 
                       <FileIcon fontSize="small" sx={{ color: theme => theme.palette.mode === 'dark' ? '#aaa' : '#666' }} />
                     }
                   </ListItemIcon>
@@ -579,7 +702,7 @@ const FileBrowser = () => {
                         component="div" 
                         sx={{ 
                           fontWeight: file.isDirectory ? 600 : 400,
-                          color: file.isDirectory ? 'primary.main' : 'text.primary',
+                          color: (file.isDirectory && file.isRestricted) ? 'text.disabled' : (file.isDirectory ? 'primary.main' : 'text.primary'),
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap'
@@ -844,11 +967,12 @@ const FileBrowser = () => {
           borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
           fontWeight: 600
         }}>
-          Upload File
+          Upload Files to {selectedGroup ? selectedGroup.name : ''}
         </DialogTitle>
         <DialogContent sx={{ mt: 2 }}>
           <input 
             type="file" 
+            multiple
             onChange={handleFileInputChange} 
             style={{ 
               width: '100%',
@@ -858,19 +982,49 @@ const FileBrowser = () => {
               borderRadius: '8px',
             }}
           />
+          {/* Display list of selected files with progress */}
+          {filesToUpload.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2">Selected files:</Typography>
+              <List dense>
+                {filesToUpload.map((file, index) => (
+                  <ListItem key={index}>
+                    <ListItemText 
+                      primary={file.name} 
+                      secondary={`Size: ${fileService.formatFileSize(file.size)}`}
+                    />
+                    {isUploading && uploadProgress.overall !== undefined && (
+                      <Box sx={{ width: '50%', ml: 2 }}>
+                        <LinearProgress variant="determinate" value={uploadProgress.overall} />
+                        <Typography variant="caption">{`${uploadProgress.overall}%`}</Typography>
+                      </Box>
+                    )}
+                  </ListItem>
+                ))}
+              </List>
+              {/* Show overall progress if not per file, or just a general spinner */}
+              {isUploading && filesToUpload.length > 1 && uploadProgress.overall !== undefined && (
+                 <Box sx={{display: 'flex', alignItems: 'center', mt:1}}>
+                    <Typography variant="body2" sx={{mr:1}}>Overall Progress: </Typography>
+                    <LinearProgress variant="determinate" value={uploadProgress.overall} sx={{flexGrow:1}} />
+                    <Typography variant="caption" sx={{ml:1}}>{`${uploadProgress.overall}%`}</Typography>
+                 </Box>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2, pt: 0 }}>
-          <Button onClick={handleUploadClose} variant="outlined" size="small">
+          <Button onClick={handleUploadClose} variant="outlined" size="small" disabled={isUploading}>
             Cancel
           </Button>
           <Button 
-            onClick={handleUploadFile} 
+            onClick={handleUploadFiles}
             variant="contained" 
             color="primary"
             size="small"
-            disabled={!fileToUpload}
+            disabled={!filesToUpload || filesToUpload.length === 0 || isUploading}
           >
-            Upload
+            {isUploading ? 'Uploading...' : 'Upload'}
           </Button>
         </DialogActions>
       </Dialog>

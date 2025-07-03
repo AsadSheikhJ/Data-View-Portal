@@ -31,24 +31,11 @@ import {
 import {
   Add as AddIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  People as PeopleIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { getApiConfig } from '../services/apiConfig';
-
-// Get the API URL from our centralized configuration
-const getAPIUrl = () => {
-  // First check for runtime configuration (from window.runtimeConfig)
-  // if (window.runtimeConfig && window.runtimeConfig.API_URL) {
-  //   return window.runtimeConfig.API_URL;
-  // }
-  
-  // Then fall back to our centralized API config
-  return getApiConfig().baseUrl;
-};
-
-// Define API URL
-const API_URL = getAPIUrl();
+import { userApi } from '../services/api';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -73,46 +60,13 @@ const UserManagement = () => {
     severity: 'success'
   });
 
-  const { user: currentLoggedUser, token } = useAuth();
+  const { user: currentLoggedUser } = useAuth();
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      // Get token from localStorage if not available in context
-      const authToken = token || localStorage.getItem('token');
-      
-      if (!authToken) {
-        throw new Error('Authentication token not available');
-      }
-      
-      const response = await fetch(`${API_URL}/api/users`, {
-        headers: { 
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-      
-      // Check if response is ok
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Error response (${response.status}):`, errorText);
-        throw new Error(`Server error: ${response.status} ${response.statusText}`);
-      }
-      
-      // Try to parse as JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const textResponse = await response.text();
-        console.error('Unexpected non-JSON response:', textResponse);
-        throw new Error('Server returned non-JSON response');
-      }
-      
-      const usersData = await response.json();
-      
-      // Ensure users is always an array
-      setUsers(Array.isArray(usersData) ? usersData : []);
-      
+      const response = await userApi.getAllUsers();
+      setUsers(Array.isArray(response.data) ? response.data : []);
       setSnackbar({
         open: true,
         message: 'Users loaded successfully',
@@ -123,13 +77,13 @@ const UserManagement = () => {
       setUsers([]);
       setSnackbar({
         open: true,
-        message: 'Failed to load users: ' + error.message,
+        message: 'Failed to load users: ' + (error.response?.data?.message || error.message),
         severity: 'error'
       });
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchUsers();
@@ -210,63 +164,26 @@ const UserManagement = () => {
         return;
       }
 
-      // Get token from localStorage if not available in context
-      const authToken = token || localStorage.getItem('token');
-      
-      if (!authToken) {
-        setSnackbar({
-          open: true,
-          message: 'You must be logged in to perform this action',
-          severity: 'error'
-        });
-        return;
+      let response;
+      if (dialogMode === 'add') {
+        response = await userApi.createUser(formData);
+      } else {
+        response = await userApi.updateUser(currentUser.id, formData);
       }
-      
-      // Prepare API call
-      const apiEndpoint = `${API_URL}/api/users${dialogMode === 'edit' && currentUser ? `/${currentUser.id}` : ''}`;
-      const method = dialogMode === 'add' ? 'POST' : 'PUT';
-      
-      console.log(`${method} request to ${apiEndpoint}`);
-      console.log('Form data:', { ...formData, password: formData.password ? '******' : '' });
-      
-      const response = await fetch(apiEndpoint, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify(formData)
-      });
-      
-      if (!response.ok) {
-        const contentType = response.headers.get('content-type');
-        
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || `Server error: ${response.status}`);
-        } else {
-          throw new Error(`Server error: ${response.status} ${response.statusText}`);
-        }
-      }
-      
-      const data = await response.json();
-      console.log('API Response:', data);
-      
-      // Success message
+
       setSnackbar({
         open: true,
         message: `User ${dialogMode === 'add' ? 'created' : 'updated'} successfully`,
         severity: 'success'
       });
-      
+
       handleCloseDialog();
       fetchUsers(); // Refresh the list
     } catch (error) {
       console.error('Error submitting form:', error);
-      
       setSnackbar({
         open: true,
-        message: `Failed to save user: ${error.message}`,
+        message: `Failed to save user: ${error.response?.data?.message || error.message}`,
         severity: 'error'
       });
     }
@@ -275,33 +192,8 @@ const UserManagement = () => {
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        const authToken = token || localStorage.getItem('token');
-        
-        if (!authToken) {
-          throw new Error('Authentication token not available');
-        }
-        
-        const response = await fetch(`${API_URL}/api/users/${userId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${authToken}`
-          }
-        });
-        
-        if (!response.ok) {
-          const contentType = response.headers.get('content-type');
-          
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `Server error: ${response.status}`);
-          } else {
-            throw new Error(`Server error: ${response.status} ${response.statusText}`);
-          }
-        }
-        
-        // Remove the deleted user from the local state
+        await userApi.deleteUser(userId);
         setUsers(prev => prev.filter(user => user.id !== userId));
-        
         setSnackbar({
           open: true,
           message: 'User deleted successfully',
@@ -311,7 +203,7 @@ const UserManagement = () => {
         console.error('Error deleting user:', error);
         setSnackbar({
           open: true,
-          message: 'Failed to delete user: ' + error.message,
+          message: 'Failed to delete user: ' + (error.response?.data?.message || error.message),
           severity: 'error'
         });
       }
@@ -322,81 +214,94 @@ const UserManagement = () => {
     setSnackbar({ ...snackbar, open: false });
   };
 
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 200px)' }}>
+        <CircularProgress />
+        <Typography sx={{ ml: 2 }}>Loading users...</Typography>
+      </Box>
+    );
+  }
+
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 ,paddingTop: 4}}>
-        <Typography variant="h4" component="h2">
-          User Management
+    <Box sx={{ p: { xs: 1, md: 2 } }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h5" component="h2" sx={{ fontWeight: 600 }}>
+          Members
         </Typography>
         <Button
-    
           variant="contained"
-          color="primary"
           startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog('add')
-          }
+          onClick={() => handleOpenDialog('add')}
+          sx={{ fontWeight: 500 }}
         >
           Add User
         </Button>
       </Box>
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
+      {users.length === 0 ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', py: 5, border: '1px dashed', borderColor: 'divider', borderRadius: 1 }}>
+          <PeopleIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary">No users found.</Typography>
+          <Typography color="text.secondary">Click "Add User" to create the first one.</Typography>
         </Box>
       ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
+        <TableContainer sx={{ borderRadius: 1.5 }}>
+          <Table aria-label="user management table">
+            <TableHead sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100' }}>
               <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Permissions</TableCell>
-                <TableCell>Actions</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Name</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Email</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Role</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Permissions</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {Array.isArray(users) && users.length > 0 ? (
-                users.map((user) => (
-                  <TableRow key={user.id || Math.random()}>
-                    <TableCell>{user.name || 'N/A'}</TableCell>
-                    <TableCell>{user.email || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={user.role || 'user'} 
-                        color={(user.role === 'admin') ? 'primary' : 'default'}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {user.permissions?.view && <Chip label="View" size="small" sx={{ mr: 0.5 }} />}
-                      {user.permissions?.edit && <Chip label="Edit" size="small" color="primary" sx={{ mr: 0.5 }} />}
-                      {user.permissions?.download && <Chip label="Download" size="small" color="secondary" />}
-                    </TableCell>
-                    <TableCell>
-                      <IconButton 
-                        color="primary"
-                        onClick={() => handleOpenDialog('edit', user)}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton 
-                        color="error" 
-                        disabled={user.id === currentLoggedUser?.id}
-                        onClick={() => handleDeleteUser(user.id)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} align="center">
-                    No users found
+              {users.map((user) => (
+                <TableRow key={user.id} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                  <TableCell component="th" scope="row">
+                    {user.name}
+                  </TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={user.role} 
+                      size="small" 
+                      color={user.role === 'admin' ? 'primary' : 'default'} 
+                      sx={{ textTransform: 'capitalize', fontWeight: 500 }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {user.permissions && (
+                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                        {user.permissions.view && <Chip label="View" size="small" variant="outlined" sx={{ bgcolor: 'info.lighter', color: 'info.darker', borderColor: 'info.main' }} />}
+                        {user.permissions.edit && <Chip label="Edit" size="small" variant="outlined" sx={{ bgcolor: 'success.lighter', color: 'success.darker', borderColor: 'success.main' }} />}
+                        {user.permissions.download && <Chip label="Download" size="small" variant="outlined" sx={{ bgcolor: 'secondary.lighter', color: 'secondary.darker', borderColor: 'secondary.main' }} />}
+                      </Box>
+                    )}
+                  </TableCell>
+                  <TableCell align="right">
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleOpenDialog('edit', user)} 
+                      disabled={currentLoggedUser && currentLoggedUser.id === user.id && user.role === 'admin'} // Prevent admin from editing self to lose admin role by mistake
+                      title={currentLoggedUser && currentLoggedUser.id === user.id && user.role === 'admin' ? "Cannot edit current admin user directly" : "Edit user"}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleDeleteUser(user.id)} 
+                      disabled={currentLoggedUser && currentLoggedUser.id === user.id} // Prevent self-deletion
+                      title={currentLoggedUser && currentLoggedUser.id === user.id ? "Cannot delete self" : "Delete user"}
+                      color="error"
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
                   </TableCell>
                 </TableRow>
-              )}
+              ))}
             </TableBody>
           </Table>
         </TableContainer>

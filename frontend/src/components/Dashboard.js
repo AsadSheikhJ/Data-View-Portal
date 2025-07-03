@@ -3,7 +3,7 @@ import {
   AppBar, Box, Toolbar, Typography, IconButton, Drawer, 
   List, ListItem, ListItemIcon, ListItemText, Divider, 
   Avatar, Menu, MenuItem, useMediaQuery, useTheme,
-  Paper, Tooltip, Fade, Chip
+  Paper, Tooltip, Fade, Chip, Tabs, Tab
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -12,25 +12,49 @@ import {
   Settings as SettingsIcon,
   ExitToApp as LogoutIcon,
   Brightness4 as DarkModeIcon,
-  Brightness7 as LightModeIcon
+  Brightness7 as LightModeIcon,
+  GroupWork as GroupWorkIcon,
+  DashboardCustomize as ManagementIcon
 } from '@mui/icons-material';
 import FileBrowser from './FileBrowser';
 import UserManagement from './UserManagement';
+import GroupManagementPage from './AdminPanel/GroupManagementPage';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const drawerWidth = 230;
 
-const Dashboard = ({ colorMode }) => {
+function TabPanel(props) {
+  const { children, value, index, ...other } = props;
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`management-tabpanel-${index}`}
+      aria-labelledby={`management-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ pt: 3 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+}
+
+const Dashboard = ({ darkMode, toggleDarkMode }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [drawerOpen, setDrawerOpen] = useState(!isMobile);
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentSection, setCurrentSection] = useState('files');
+  const [managementTab, setManagementTab] = useState(0);
   
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { mode, toggleColorMode } = colorMode || { mode: 'light', toggleColorMode: () => {} };
+  const mode = darkMode !== undefined ? darkMode : 'light';
+  const actualToggleColorMode = toggleDarkMode || (() => {});
 
   // Close drawer automatically on mobile
   useEffect(() => {
@@ -79,6 +103,15 @@ const Dashboard = ({ colorMode }) => {
     return 'Good evening';
   };
 
+  const handleManagementTabChange = (event, newValue) => {
+    setManagementTab(newValue);
+  };
+
+  const drawerItems = [
+    { text: 'File Browser', icon: <FolderIcon />, section: 'files', adminOnly: false },
+    { text: 'Management', icon: <ManagementIcon />, section: 'management', adminOnly: true },
+  ];
+
   return (
     <Box sx={{ 
       display: 'flex', 
@@ -121,7 +154,7 @@ const Dashboard = ({ colorMode }) => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {/* Theme Toggle */}
             <Tooltip title={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`}>
-              <IconButton color="inherit" onClick={toggleColorMode} size="small">
+              <IconButton color="inherit" onClick={actualToggleColorMode} size="small">
                 {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
               </IconButton>
             </Tooltip>
@@ -190,7 +223,7 @@ const Dashboard = ({ colorMode }) => {
           </Typography>
           <Chip
             size="small"
-            label={user?.role === 'admin' ? 'Administrator' : 'Regular User'}
+            label={user?.role === 'admin' ? 'Administrator' : 'User'}
             color={user?.role === 'admin' ? 'primary' : 'default'}
             sx={{ mb: 1 }}
           />
@@ -244,57 +277,39 @@ const Dashboard = ({ colorMode }) => {
           </Box>
           
           <List dense>
-            <ListItem 
-              component="div"
-              selected={currentSection === 'files'} 
-              onClick={() => {
-                setCurrentSection('files');
-                if (isMobile) setDrawerOpen(false);
-              }}
-              sx={{ 
-                cursor: 'pointer',
-                mx: 1,
-                mb: 0.5,
-                ml: 0,
-              }}
-            >
-              <ListItemIcon>
-                <FolderIcon color={currentSection === 'files' ? 'primary' : 'inherit'} />
-              </ListItemIcon>
-              <ListItemText 
-                primary="Files" 
-                primaryTypographyProps={{ 
-                  fontWeight: currentSection === 'files' ? 600 : 400
-                }} 
-              />
-            </ListItem>
-            
-            {isAdmin && (
-              <ListItem 
-                component="div"
-                selected={currentSection === 'users'} 
-                onClick={() => {
-                  setCurrentSection('users');
-                  if (isMobile) setDrawerOpen(false);
-                }}
-                sx={{ 
-                  cursor: 'pointer',
-                  mx: 1,
-                  mb: 0.5,
-                  ml: 0,
-                }}
-              >
-                <ListItemIcon>
-                  <PeopleIcon color={currentSection === 'users' ? 'primary' : 'inherit'} />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="Users" 
-                  primaryTypographyProps={{ 
-                    fontWeight: currentSection === 'users' ? 600 : 400
-                  }} 
-                />
-              </ListItem>
-            )}
+            {drawerItems.map((item) => {
+              if (item.adminOnly && !isAdmin) return null;
+              return (
+                <ListItem 
+                  key={item.text}
+                  component="div"
+                  selected={currentSection === item.section} 
+                  onClick={() => {
+                    if (item.action) item.action();
+                    else setCurrentSection(item.section);
+                    if (isMobile) handleDrawerToggle();
+                  }}
+                  sx={{
+                    
+                    cursor: 'pointer',
+                    mb: 0.5, 
+                    borderRadius: 1,
+                    '&.Mui-selected': {
+                      backgroundColor: theme.palette.action.selected,
+                      '&:hover': {
+                        backgroundColor: theme.palette.action.selected,
+                      }
+                    },
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                    }
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
+                  <ListItemText primary={item.text} />
+                </ListItem>
+              );
+            })}
           </List>
           
           <Divider sx={{ my: 1 }} />
@@ -379,23 +394,28 @@ const Dashboard = ({ colorMode }) => {
             {getGreeting()}, {firstName}!
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {currentSection === 'files' ? 'Browse and manage your files' : 'Manage user accounts and permissions'}
+            {currentSection === 'files' && 'Browse and manage your files and folders'}
+            {currentSection === 'management' && 'Access user and group administration tools'}
           </Typography>
         </Paper>
 
         {currentSection === 'files' && <FileBrowser />}
         
-        {currentSection === 'users' && isAdmin && <UserManagement />}
-        
-        {currentSection === 'settings' && (
-          <Box sx={{ p: { xs: 1, sm: 2 } }}>
-            <Typography variant="h5" component="h2" gutterBottom>
-              Settings
-            </Typography>
-            <Typography variant="body1">
-              Settings functionality would go here.
-            </Typography>
-          </Box>
+        {currentSection === 'management' && isAdmin && (
+          <Paper sx={{ p: 0, borderRadius: 2, boxShadow: 0, border: `1px solid ${theme.palette.divider}` }}>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+              <Tabs value={managementTab} onChange={handleManagementTabChange} aria-label="Management Tabs">
+                <Tab icon={<PeopleIcon />} iconPosition="start" label="User Management" id="management-tab-0" aria-controls="management-tabpanel-0" />
+                <Tab icon={<GroupWorkIcon />} iconPosition="start" label="Group Management" id="management-tab-1" aria-controls="management-tabpanel-1" />
+              </Tabs>
+            </Box>
+            <TabPanel value={managementTab} index={0}>
+              <UserManagement />
+            </TabPanel>
+            <TabPanel value={managementTab} index={1}>
+              <GroupManagementPage />
+            </TabPanel>
+          </Paper>
         )}
       </Box>
     </Box>

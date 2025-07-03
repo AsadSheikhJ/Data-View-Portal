@@ -35,7 +35,39 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add a response interceptor to handle 401 errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear auth data
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Show session expiration notification
+      const notificationEvent = new CustomEvent('showNotification', {
+        detail: {
+          message: 'Your session has expired. Please log in again.',
+          severity: 'warning',
+          autoHideDuration: 3000
+        }
+      });
+      window.dispatchEvent(notificationEvent);
+      
+      // Redirect to login page if not already there
+      if (!window.location.pathname.includes('/login')) {
+        setTimeout(() => {
+          window.location.href = '/login?session=expired';
+        }, 1000); // Wait for notification to be visible
+      }
+    }
+    return Promise.reject(error);
+  }
 );
 
 // User management API endpoints
